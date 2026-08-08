@@ -14,17 +14,23 @@ import { InterviewDNA as InterviewDNAType } from '../types/interview';
 import { Dna, Sparkles } from 'lucide-react';
 
 interface InterviewDNAProps {
-  dna: InterviewDNAType;
+  dna: InterviewDNAType | null | undefined;
   compact?: boolean;
 }
 
 export default function InterviewDNA({ dna, compact = false }: InterviewDNAProps) {
+  const technical = dna?.technicalKnowledge ?? 0;
+  const communication = dna?.communication ?? 0;
+  const problemSolving = dna?.problemSolving ?? 0;
+  const leadership = dna?.leadership ?? 0;
+  const learning = dna?.learningAbility ?? 0;
+
   const chartData = [
-    { axis: 'Technical Knowledge', value: dna.technical, fullMark: 100 },
-    { axis: 'Communication', value: dna.communication, fullMark: 100 },
-    { axis: 'Problem Solving', value: dna.problemSolving, fullMark: 100 },
-    { axis: 'Leadership', value: dna.leadership, fullMark: 100 },
-    { axis: 'Learning Agility', value: dna.learning, fullMark: 100 },
+    { axis: 'Technical Knowledge', value: technical, fullMark: 100 },
+    { axis: 'Communication', value: communication, fullMark: 100 },
+    { axis: 'Problem Solving', value: problemSolving, fullMark: 100 },
+    { axis: 'Leadership', value: leadership, fullMark: 100 },
+    { axis: 'Learning Agility', value: learning, fullMark: 100 },
   ];
 
   return (
@@ -81,23 +87,23 @@ export default function InterviewDNA({ dna, compact = false }: InterviewDNAProps
         <div className="grid grid-cols-5 gap-2 pt-2 border-t border-white/10 text-center">
           <div>
             <div className="text-[10px] text-gray-400">Technical</div>
-            <div className="text-sm font-extrabold text-indigo-400">{dna.technical}%</div>
+            <div className="text-sm font-extrabold text-indigo-400">{technical}%</div>
           </div>
           <div>
             <div className="text-[10px] text-gray-400">Comm.</div>
-            <div className="text-sm font-extrabold text-cyan-400">{dna.communication}%</div>
+            <div className="text-sm font-extrabold text-cyan-400">{communication}%</div>
           </div>
           <div>
             <div className="text-[10px] text-gray-400">Problem</div>
-            <div className="text-sm font-extrabold text-emerald-400">{dna.problemSolving}%</div>
+            <div className="text-sm font-extrabold text-emerald-400">{problemSolving}%</div>
           </div>
           <div>
             <div className="text-[10px] text-gray-400">Leadership</div>
-            <div className="text-sm font-extrabold text-amber-400">{dna.leadership}%</div>
+            <div className="text-sm font-extrabold text-amber-400">{leadership}%</div>
           </div>
           <div>
             <div className="text-[10px] text-gray-400">Learning</div>
-            <div className="text-sm font-extrabold text-violet-400">{dna.learning}%</div>
+            <div className="text-sm font-extrabold text-violet-400">{learning}%</div>
           </div>
         </div>
       )}

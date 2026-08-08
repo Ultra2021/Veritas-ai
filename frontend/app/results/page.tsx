@@ -8,13 +8,38 @@ import VerifiedSkills from '../../components/VerifiedSkills';
 import InterviewDNA from '../../components/InterviewDNA';
 import GrowthMap from '../../components/GrowthMap';
 import { useInterview } from '../../hooks/useInterview';
-import { RotateCcw, ArrowLeft, Share2, Sparkles, ShieldCheck } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { RotateCcw, ArrowLeft, Sparkles } from 'lucide-react';
 
 export default function ResultsPage() {
   const { candidate, currentResponse, getSkillDetails, restartInterview } = useInterview();
 
   const skillsList = getSkillDetails();
+  const confidenceScore = currentResponse?.hiringConfidence ?? 0;
+
+  const recommendation =
+    confidenceScore >= 85
+      ? 'STRONG HIRE'
+      : confidenceScore >= 65
+      ? 'HIRE'
+      : confidenceScore >= 45
+      ? 'LEANING HIRE'
+      : 'COLLECTING EVIDENCE';
+
+  // Extract evidence summary points directly from currentResponse evidence evaluations or competencies
+  const reasoningPoints: string[] = [];
+  if (currentResponse?.evidence?.reason) {
+    reasoningPoints.push(currentResponse.evidence.reason);
+  }
+  if (currentResponse?.evidence?.strengths && currentResponse.evidence.strengths.length > 0) {
+    reasoningPoints.push(...currentResponse.evidence.strengths);
+  }
+  if (currentResponse?.competencies) {
+    currentResponse.competencies.forEach((c) => {
+      if (c.status === 'verified' && c.notes) {
+        reasoningPoints.push(`${c.competency}: ${c.notes}`);
+      }
+    });
+  }
 
   return (
     <div className="min-h-screen bg-[#090d16] text-gray-100 flex flex-col selection:bg-indigo-500/30 selection:text-indigo-200">
@@ -53,14 +78,9 @@ export default function ResultsPage() {
         {/* 1. ResultsCard (Hiring Recommendation + Reasoning) */}
         <ResultsCard
           candidateInfo={candidate}
-          confidenceScore={currentResponse.confidence}
-          recommendation={
-            currentResponse.confidence >= 85
-              ? 'STRONG HIRE'
-              : currentResponse.confidence >= 65
-              ? 'HIRE'
-              : 'LEANING HIRE'
-          }
+          confidenceScore={confidenceScore}
+          recommendation={recommendation}
+          reasoning={reasoningPoints.length > 0 ? reasoningPoints : undefined}
         />
 
         {/* 2 Grid Layout: Left Verified Skills & Growth Map, Right Interview DNA Radar */}
@@ -71,7 +91,7 @@ export default function ResultsPage() {
             {/* Verified Skills Grid */}
             <VerifiedSkills skills={skillsList} />
 
-            {/* Growth Map */}
+            {/* Growth Map (Placeholder for future Module 10 integration) */}
             <GrowthMap />
           </div>
 
@@ -79,7 +99,7 @@ export default function ResultsPage() {
           <div className="lg:col-span-5 space-y-6 sticky top-24">
             
             {/* 5-Axis Interview DNA Radar Chart */}
-            <InterviewDNA dna={currentResponse.interviewDNA} compact={false} />
+            <InterviewDNA dna={currentResponse?.interviewDNA} compact={false} />
 
             {/* Summary Highlights Panel */}
             <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-4 text-xs text-gray-300">

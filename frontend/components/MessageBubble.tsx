@@ -32,7 +32,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
       {/* Message Card */}
       <div className={`flex flex-col ${isAi ? 'items-start' : 'items-end'} max-w-[88%]`}>
-        
+
         {/* Sender Name & Meta */}
         <div className="flex items-center gap-2 mb-1.5 px-1">
           <span className="text-xs font-semibold text-gray-300">

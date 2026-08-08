@@ -1,18 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { getNextQuestion, resetMockSession } from '../services/api';
+import { useState, useEffect, useCallback } from 'react';
+import { startInterview, submitAnswer as apiSubmitAnswer, getInterviewState } from '../services/api';
 import {
   CandidateInfo,
   ChatMessage,
-  InterviewResponse,
+  InterviewTurnResponse,
   SkillDetail,
   SkillStatus,
+  CompetencyState,
 } from '../types/interview';
 
 const DEFAULT_CANDIDATE: CandidateInfo = {
-  name: 'Alex Chen',
-  targetRole: 'Senior Backend Engineer',
+  candidateId: 'CAND-001',
+  name: 'Sarah Johnson',
+  targetRole: 'Senior Data Engineer',
   experienceLevel: 'Senior',
   companyMode: 'Startup (Fast & Scrappy)',
 };
@@ -21,21 +23,10 @@ export function useInterview() {
   const [candidate, setCandidate] = useState<CandidateInfo>(DEFAULT_CANDIDATE);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [sessionId, setSessionId] = useState<string>('session-1');
-  const [currentResponse, setCurrentResponse] = useState<InterviewResponse>({
-    question: 'Explain FastAPI dependency injection.',
-    verifiedSkills: ['Python'],
-    currentSkill: 'FastAPI',
-    confidence: 34,
-    interviewDNA: {
-      technical: 65,
-      communication: 70,
-      leadership: 50,
-      problemSolving: 60,
-      learning: 75,
-    },
-    done: false,
-  });
+  const [isStarting, setIsStarting] = useState<boolean>(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [currentResponse, setCurrentResponse] = useState<InterviewTurnResponse | null>(null);
 
   // Hydrate candidate data from localStorage if available
   useEffect(() => {
@@ -43,27 +34,53 @@ export function useInterview() {
       const saved = localStorage.getItem('veritas_candidate');
       if (saved) {
         try {
-          setCandidate(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          setCandidate({
+            ...DEFAULT_CANDIDATE,
+            ...parsed,
+          });
         } catch (e) {
-          console.error(e);
+          console.error('Failed to parse candidate from localStorage:', e);
         }
       }
     }
   }, []);
 
-  // Initialize first question if messages empty
-  useEffect(() => {
-    if (messages.length === 0) {
+  // Initialize or start session for candidate
+  const startSession = useCallback(async (candidateIdToUse?: string) => {
+    const targetCandidateId = candidateIdToUse || candidate.candidateId || 'CAND-001';
+    setIsStarting(true);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const turn = await startInterview(targetCandidateId);
+      setSessionId(turn.sessionId);
+      setCurrentResponse(turn);
+
       const firstQuestionMsg: ChatMessage = {
-        id: 'msg-0',
+        id: `msg-${Date.now()}`,
         sender: 'ai',
-        text: currentResponse.question,
+        text: turn.question,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        skillTag: currentResponse.currentSkill,
+        skillTag: turn.currentCompetency || undefined,
       };
       setMessages([firstQuestionMsg]);
+    } catch (err: any) {
+      console.error('Failed to start interview session:', err);
+      const msg = err.response?.data?.detail || err.message || 'Unable to connect to backend server at http://localhost:8000';
+      setError(msg);
+    } finally {
+      setIsStarting(false);
+      setIsLoading(false);
     }
-  }, [messages.length, currentResponse.question, currentResponse.currentSkill]);
+  }, [candidate.candidateId]);
+
+  // Automatically start interview if no active session
+  useEffect(() => {
+    if (!sessionId && !isStarting && !currentResponse) {
+      startSession();
+    }
+  }, [sessionId, isStarting, currentResponse, startSession]);
 
   const updateCandidateInfo = (info: CandidateInfo) => {
     setCandidate(info);
@@ -72,10 +89,11 @@ export function useInterview() {
     }
   };
 
-  const submitAnswer = async (answerText: string): Promise<InterviewResponse | null> => {
-    if (!answerText.trim()) return null;
+  const submitAnswer = async (answerText: string): Promise<InterviewTurnResponse | null> => {
+    if (!answerText.trim() || !sessionId || isLoading) return null;
 
     setIsLoading(true);
+    setError(null);
 
     // Add candidate message to history immediately
     const userMsg: ChatMessage = {
@@ -83,90 +101,66 @@ export function useInterview() {
       sender: 'candidate',
       text: answerText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      evidenceAdded: `${currentResponse.currentSkill} response submitted`,
+      evidenceAdded: currentResponse?.currentCompetency
+        ? `${currentResponse.currentCompetency} response submitted`
+        : 'Response submitted',
     };
 
     setMessages((prev) => [...prev, userMsg]);
 
     try {
-      // Call mock / real backend service
-      const res = await getNextQuestion(sessionId, answerText);
-      setCurrentResponse(res);
+      const turn = await apiSubmitAnswer(sessionId, answerText);
+      setCurrentResponse(turn);
 
-      // Add AI follow-up message
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        sender: 'ai',
-        text: res.question,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        skillTag: res.currentSkill,
-      };
-
-      setMessages((prev) => [...prev, aiMsg]);
-      setIsLoading(false);
-      return res;
-    } catch (err) {
+      // Add AI response message
+      if (turn.question) {
+        const aiMsg: ChatMessage = {
+          id: `ai-${Date.now()}`,
+          sender: 'ai',
+          text: turn.question,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          skillTag: turn.currentCompetency || undefined,
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+      }
+      return turn;
+    } catch (err: any) {
       console.error('Interview turn failed:', err);
-      setIsLoading(false);
+      const msg = err.response?.data?.detail || err.message || 'Error submitting answer to backend service';
+      setError(msg);
       return null;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const restartInterview = () => {
-    const newSession = `session-${Date.now()}`;
-    setSessionId(newSession);
-    resetMockSession(newSession);
+    setSessionId(null);
+    setCurrentResponse(null);
     setMessages([]);
-    setCurrentResponse({
-      question: 'Explain FastAPI dependency injection.',
-      verifiedSkills: ['Python'],
-      currentSkill: 'FastAPI',
-      confidence: 34,
-      interviewDNA: {
-        technical: 65,
-        communication: 70,
-        leadership: 50,
-        problemSolving: 60,
-        learning: 75,
-      },
-      done: false,
-    });
+    setError(null);
+    startSession(candidate.candidateId);
   };
 
-  // Convert currentResponse into detailed skill items for UI
+  // Convert backend competencies array into detailed skill items for UI
   const getSkillDetails = (): SkillDetail[] => {
-    const allSkills = [
-      { name: 'Python Core & Async', requiredConfidence: 30 },
-      { name: 'FastAPI Dependency Injection', requiredConfidence: 50 },
-      { name: 'Distributed Caching (Redis)', requiredConfidence: 70 },
-      { name: 'Database Optimization', requiredConfidence: 80 },
-      { name: 'Kubernetes Architecture', requiredConfidence: 90 },
-    ];
+    if (!currentResponse || !currentResponse.competencies || currentResponse.competencies.length === 0) {
+      return [];
+    }
 
-    return allSkills.map((sk) => {
-      const isVerified = currentResponse.verifiedSkills.some((vs) =>
-        vs.toLowerCase().includes(sk.name.split(' ')[0].toLowerCase())
-      ) || currentResponse.confidence >= sk.requiredConfidence;
-
+    return currentResponse.competencies.map((comp: CompetencyState) => {
       let status: SkillStatus = 'Needs More Evidence';
-      let score = Math.max(20, Math.min(100, currentResponse.confidence - Math.floor(Math.random() * 10)));
-
-      if (isVerified) {
+      if (comp.status === 'verified') {
         status = 'Verified';
-        score = Math.min(98, Math.max(82, currentResponse.confidence + 5));
-      } else if (currentResponse.confidence >= sk.requiredConfidence - 25) {
+      } else if (comp.status === 'in_progress' || comp.status === 'needs_followup') {
         status = 'Partial';
-        score = Math.min(78, Math.max(50, currentResponse.confidence - 10));
-      } else {
-        status = 'Needs More Evidence';
-        score = Math.min(45, currentResponse.confidence);
       }
 
       return {
-        name: sk.name,
+        name: comp.competency,
         status,
-        score,
-        evidenceSnippet: isVerified ? `Verified during ${sk.name} adaptive question phase.` : undefined,
+        score: comp.evidenceScore,
+        evidenceSnippet: comp.notes || (currentResponse.evidence?.competency === comp.competency ? currentResponse.evidence.reason : undefined),
       };
     });
   };
@@ -176,7 +170,11 @@ export function useInterview() {
     updateCandidateInfo,
     messages,
     isLoading,
+    isStarting,
+    sessionId,
+    error,
     currentResponse,
+    startSession,
     submitAnswer,
     restartInterview,
     getSkillDetails,

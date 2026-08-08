@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '../../components/Navbar';
-import { User, Briefcase, Award, Building2, Play, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
+import { User, Briefcase, Award, Building2, Play, Sparkles, ArrowRight, ShieldCheck, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CandidateInfo } from '../../types/interview';
 
@@ -11,8 +11,9 @@ export default function CandidateSelectionPage() {
   const router = useRouter();
 
   const [form, setForm] = useState<CandidateInfo>({
-    name: 'Alex Chen',
-    targetRole: 'Senior Full-Stack Engineer',
+    candidateId: 'CAND-001',
+    name: 'Sarah Johnson',
+    targetRole: 'Senior Data Engineer',
     experienceLevel: 'Senior',
     companyMode: 'Startup (Fast & Scrappy)',
   });
@@ -25,13 +26,20 @@ export default function CandidateSelectionPage() {
     router.push('/interview');
   };
 
-  const applyPreset = (role: string, level: CandidateInfo['experienceLevel'], company: CandidateInfo['companyMode']) => {
-    setForm((prev) => ({
-      ...prev,
+  const applyPreset = (
+    id: string,
+    name: string,
+    role: string,
+    level: CandidateInfo['experienceLevel'],
+    company: CandidateInfo['companyMode']
+  ) => {
+    setForm({
+      candidateId: id,
+      name,
       targetRole: role,
       experienceLevel: level,
       companyMode: company,
-    }));
+    });
   };
 
   return (
@@ -39,7 +47,7 @@ export default function CandidateSelectionPage() {
       <Navbar currentStep="select" />
 
       <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-12 flex flex-col justify-center w-full">
-        
+
         {/* Page Title */}
         <div className="text-center space-y-2 mb-8">
           <motion.div
@@ -61,34 +69,34 @@ export default function CandidateSelectionPage() {
         {/* Quick Demo Presets */}
         <div className="mb-6 space-y-2">
           <div className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Demo Quick Presets:
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Demo Candidate Presets:
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               type="button"
-              onClick={() => applyPreset('Senior Backend Engineer', 'Senior', 'Startup (Fast & Scrappy)')}
+              onClick={() => applyPreset('CAND-001', 'Sarah Johnson', 'Senior Data Engineer', 'Senior', 'Startup (Fast & Scrappy)')}
               className="glass-card p-3 rounded-xl border border-white/10 text-left hover:border-indigo-500/40 transition-all text-xs"
             >
-              <div className="font-bold text-white">Startup Backend Lead</div>
-              <div className="text-[11px] text-gray-400">FastAPI • Async • Redis</div>
+              <div className="font-bold text-white">Sarah Johnson (CAND-001)</div>
+              <div className="text-[11px] text-gray-400">Senior Data Engineer</div>
             </button>
 
             <button
               type="button"
-              onClick={() => applyPreset('AI Infrastructure Engineer', 'Senior', 'OpenAI (AI Architecture & Math)')}
+              onClick={() => applyPreset('CAND-002', 'Alex Turner', 'Backend Software Engineer', 'Mid-Level', 'OpenAI (AI Architecture & Math)')}
               className="glass-card p-3 rounded-xl border border-white/10 text-left hover:border-violet-500/40 transition-all text-xs"
             >
-              <div className="font-bold text-white">AI Systems Specialist</div>
-              <div className="text-[11px] text-gray-400">Python • PyTorch • GPU Scale</div>
+              <div className="font-bold text-white">Alex Turner (CAND-002)</div>
+              <div className="text-[11px] text-gray-400">Backend Software Engineer</div>
             </button>
 
             <button
               type="button"
-              onClick={() => applyPreset('Staff Distributed Systems Engineer', 'Lead / Principal', 'Google (Algorithms & Scale)')}
+              onClick={() => applyPreset('CAND-003', 'Emily Chen', 'AI Engineer', 'Senior', 'Google (Algorithms & Scale)')}
               className="glass-card p-3 rounded-xl border border-white/10 text-left hover:border-cyan-500/40 transition-all text-xs"
             >
-              <div className="font-bold text-white">Google Scale Principal</div>
-              <div className="text-[11px] text-gray-400">Distributed • K8s • Microservices</div>
+              <div className="font-bold text-white">Emily Chen (CAND-003)</div>
+              <div className="text-[11px] text-gray-400">AI Specialist</div>
             </button>
           </div>
         </div>
@@ -101,7 +109,23 @@ export default function CandidateSelectionPage() {
           className="glass-panel rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl space-y-6"
         >
           <form onSubmit={handleSubmit} className="space-y-5">
-            
+
+            {/* Candidate ID */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
+                <Hash className="w-4 h-4 text-cyan-400" />
+                Backend Candidate ID
+              </label>
+              <input
+                type="text"
+                required
+                value={form.candidateId}
+                onChange={(e) => setForm({ ...form, candidateId: e.target.value })}
+                placeholder="e.g. CAND-001"
+                className="w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/15 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm transition-all font-mono"
+              />
+            </div>
+
             {/* Candidate Name */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
@@ -113,7 +137,7 @@ export default function CandidateSelectionPage() {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Alex Chen"
+                placeholder="e.g. Sarah Johnson"
                 className="w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/15 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm transition-all"
               />
             </div>
@@ -129,14 +153,14 @@ export default function CandidateSelectionPage() {
                 required
                 value={form.targetRole}
                 onChange={(e) => setForm({ ...form, targetRole: e.target.value })}
-                placeholder="e.g. Senior Backend Engineer"
+                placeholder="e.g. Senior Data Engineer"
                 className="w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/15 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm transition-all"
               />
             </div>
 
             {/* Grid for Dropdowns */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
+
               {/* Experience Level */}
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">

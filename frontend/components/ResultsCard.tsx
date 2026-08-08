@@ -8,7 +8,7 @@ import { CandidateInfo } from '../types/interview';
 interface ResultsCardProps {
   candidateInfo: CandidateInfo;
   confidenceScore: number;
-  recommendation?: 'STRONG HIRE' | 'HIRE' | 'LEANING HIRE' | 'NO HIRE';
+  recommendation?: 'STRONG HIRE' | 'HIRE' | 'LEANING HIRE' | 'NO HIRE' | 'COLLECTING EVIDENCE';
   reasoning?: string[];
 }
 
@@ -77,7 +77,7 @@ export default function ResultsCard({
           <Sparkles className="w-4 h-4 text-indigo-400" />
           Key Verification Reasoning & Evidence Summary
         </h3>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {points.map((point, index) => (
             <div

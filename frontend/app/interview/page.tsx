@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '../../components/Navbar';
 import ChatWindow from '../../components/ChatWindow';
@@ -9,7 +9,7 @@ import EvidenceGraph from '../../components/EvidenceGraph';
 import HiringConfidence from '../../components/HiringConfidence';
 import InterviewDNA from '../../components/InterviewDNA';
 import { useInterview } from '../../hooks/useInterview';
-import { ShieldCheck, Sparkles, CheckCircle2, ArrowRight, RotateCcw, AlertCircle } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, ArrowRight, RotateCcw, AlertCircle, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function InterviewPage() {
@@ -18,6 +18,8 @@ export default function InterviewPage() {
     candidate,
     messages,
     isLoading,
+    isStarting,
+    error,
     currentResponse,
     submitAnswer,
     restartInterview,
@@ -25,10 +27,7 @@ export default function InterviewPage() {
   } = useInterview();
 
   const handleAnswerSubmit = async (answerText: string) => {
-    const res = await submitAnswer(answerText);
-    if (res?.done) {
-      // Small timeout to let user see final update before routing or showing modal button
-    }
+    await submitAnswer(answerText);
   };
 
   const handleFinishAndSeeResults = () => {
@@ -44,7 +43,7 @@ export default function InterviewPage() {
         
         {/* CENTER & LEFT: Chat Interface (7 or 8 columns on large screens) */}
         <section className="lg:col-span-7 xl:col-span-8 flex flex-col h-[calc(100vh-120px)] min-h-[620px] glass-panel rounded-3xl p-4 sm:p-6 border border-white/10 shadow-2xl relative">
-          
+
           {/* Header Banner */}
           <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
             <div className="flex items-center gap-3">
@@ -59,7 +58,7 @@ export default function InterviewPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-400">
-                  Target Candidate: <strong className="text-gray-200">{candidate.name}</strong> • Mode: {candidate.companyMode}
+                  Target Candidate: <strong className="text-gray-200">{candidate.name}</strong> ({candidate.candidateId}) • Mode: {candidate.companyMode}
                 </p>
               </div>
             </div>
@@ -75,8 +74,31 @@ export default function InterviewPage() {
             </div>
           </div>
 
+          {/* Backend Error Banner */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-4 text-rose-300 text-xs shadow-lg shadow-rose-500/10"
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                <span>
+                  <strong>API Error:</strong> {error}
+                </span>
+              </div>
+              <button
+                onClick={restartInterview}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold shadow-md transition-all text-xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Retry
+              </button>
+            </motion.div>
+          )}
+
           {/* If interview completed banner */}
-          {currentResponse.done && (
+          {currentResponse?.done && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -99,23 +121,23 @@ export default function InterviewPage() {
           )}
 
           {/* Conversation History Window */}
-          <ChatWindow messages={messages} isAiThinking={isLoading} />
+          <ChatWindow messages={messages} isAiThinking={isLoading || isStarting} />
 
           {/* Bottom Answer Input */}
           <div className="pt-3 border-t border-white/10 mt-auto">
             <AnswerInput
               onSend={handleAnswerSubmit}
-              isLoading={isLoading}
-              disabled={currentResponse.done}
+              isLoading={isLoading || isStarting}
+              disabled={currentResponse?.done || !!error}
             />
           </div>
         </section>
 
         {/* RIGHT: Live Evidence & Confidence Sidebar (4 or 5 columns) */}
         <aside className="lg:col-span-5 xl:col-span-4 space-y-5 overflow-y-auto max-h-[calc(100vh-120px)] custom-scrollbar pr-1">
-          
+
           {/* 1. Live Hiring Confidence Gauge */}
-          <HiringConfidence confidence={currentResponse.confidence} />
+          <HiringConfidence confidence={currentResponse?.hiringConfidence} />
 
           {/* 2. Live Skill Competency Bars */}
           <EvidenceGraph
@@ -124,14 +146,14 @@ export default function InterviewPage() {
               status: s.status,
               score: s.score,
             }))}
-            currentSkill={currentResponse.currentSkill}
+            currentSkill={currentResponse?.currentCompetency || undefined}
           />
 
           {/* 3. Live 5-Axis Interview DNA Preview */}
-          <InterviewDNA dna={currentResponse.interviewDNA} compact={true} />
+          <InterviewDNA dna={currentResponse?.interviewDNA} compact={true} />
 
           {/* View Full Assessment Button if done */}
-          {currentResponse.done && (
+          {currentResponse?.done && (
             <button
               onClick={handleFinishAndSeeResults}
               className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/20 transition-all hover:scale-[1.02]"

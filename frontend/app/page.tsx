@@ -13,7 +13,7 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20 flex flex-col items-center justify-center text-center relative overflow-hidden">
-        
+
         {/* Background Glow Orbs */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-indigo-600/20 via-cyan-500/15 to-violet-600/20 rounded-full blur-[120px] pointer-events-none" />
 

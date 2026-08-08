@@ -5,16 +5,17 @@ import { motion, useSpring, useTransform } from 'framer-motion';
 import { TrendingUp, ShieldCheck, Award } from 'lucide-react';
 
 interface HiringConfidenceProps {
-  confidence: number; // 0 - 100
+  confidence: number | null | undefined; // 0 - 100
 }
 
 export default function HiringConfidence({ confidence }: HiringConfidenceProps) {
+  const safeConfidence = confidence ?? 0;
   const springValue = useSpring(0, { stiffness: 60, damping: 15 });
   const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
-    springValue.set(confidence);
-  }, [confidence, springValue]);
+    springValue.set(safeConfidence);
+  }, [safeConfidence, springValue]);
 
   useEffect(() => {
     const unsubscribe = springValue.on('change', (latest) => {
@@ -47,7 +48,7 @@ export default function HiringConfidence({ confidence }: HiringConfidenceProps) 
       {/* Animated Percentage Radial Display */}
       <div className="relative flex items-center justify-center py-2">
         <div className="relative w-32 h-32 flex items-center justify-center">
-          
+
           {/* Outer SVG Gauge */}
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
             <circle

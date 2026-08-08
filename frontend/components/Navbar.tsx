@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ShieldCheck, Cpu, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Sparkles, User, FileText, Play } from 'lucide-react';
 
 interface NavbarProps {
   currentStep?: 'landing' | 'select' | 'interview' | 'results';
@@ -11,58 +11,78 @@ interface NavbarProps {
 
 export default function Navbar({ currentStep = 'landing', candidateName }: NavbarProps) {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/10 glass-panel px-4 lg:px-8 py-3.5 transition-all">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        
-        {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 p-0.5 shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-            <div className="w-full h-full bg-[#0b0f19] rounded-[10px] flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-cyan-400 group-hover:rotate-6 transition-transform" />
-            </div>
+    <header className="sticky top-0 z-50 w-full glass-panel border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      
+      {/* Brand Logo */}
+      <Link href="/" className="flex items-center gap-3 group">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 p-0.5 shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+          <div className="w-full h-full bg-[#090d16] rounded-[14px] flex items-center justify-center">
+            <ShieldCheck className="w-6 h-6 text-cyan-400" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold tracking-tight text-white group-hover:text-cyan-300 transition-colors">
-                VERITAS <span className="text-indigo-400 font-extrabold">AI</span>
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                PRO
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 hidden sm:block">
-              Evidence-Driven AI Interview Verification
-            </p>
-          </div>
+        </div>
+        <div>
+          <span className="text-lg font-black tracking-wider text-white flex items-center gap-1">
+            VERITAS <span className="text-gradient-cyan font-mono text-sm font-extrabold">AI</span>
+          </span>
+          <span className="text-[10px] text-gray-400 block tracking-widest font-mono -mt-1 uppercase">
+            Adaptive Skill Verification
+          </span>
+        </div>
+      </Link>
+
+      {/* Progress Flow Steps */}
+      <nav className="hidden md:flex items-center gap-2 bg-slate-900/60 p-1.5 rounded-2xl border border-white/5 text-xs font-medium">
+        <Link
+          href="/select"
+          className={`px-3 py-1.5 rounded-xl transition-all ${
+            currentStep === 'select'
+              ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          1. Candidate Config
         </Link>
+        <span className="text-gray-600 font-bold">•</span>
+        <Link
+          href="/interview"
+          className={`px-3 py-1.5 rounded-xl transition-all ${
+            currentStep === 'interview'
+              ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          2. Live Verification
+        </Link>
+        <span className="text-gray-600 font-bold">•</span>
+        <Link
+          href="/results"
+          className={`px-3 py-1.5 rounded-xl transition-all ${
+            currentStep === 'results'
+              ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30'
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          3. Evidence Report
+        </Link>
+      </nav>
 
-        {/* Dynamic Context Header */}
-        <div className="flex items-center gap-4">
-          {currentStep === 'interview' && candidateName && (
-            <div className="hidden md:flex items-center gap-3 px-3.5 py-1.5 rounded-full bg-indigo-950/50 border border-indigo-500/30 text-xs">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-gray-300">Live Interviewing: <strong className="text-white font-medium">{candidateName}</strong></span>
-            </div>
-          )}
-
-          {currentStep === 'results' && (
-            <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
-              <CheckCircle2 className="w-4 h-4" />
-              Evaluation Completed
-            </div>
-          )}
-
+      {/* Candidate Status Indicator */}
+      <div className="flex items-center gap-3">
+        {candidateName ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-white/10 text-xs">
+            <User className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-gray-300 font-medium hidden sm:inline">Active:</span>
+            <span className="font-bold text-white max-w-[120px] truncate">{candidateName}</span>
+          </div>
+        ) : (
           <Link
             href="/select"
-            className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white shadow-md shadow-indigo-600/20 border border-indigo-400/30 transition-all hover:shadow-indigo-500/40"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-bold text-xs shadow-md shadow-indigo-500/20 transition-all hover:scale-105"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            New Assessment
+            <Play className="w-3.5 h-3.5 fill-white" />
+            <span>Launch Flow</span>
           </Link>
-        </div>
+        )}
       </div>
     </header>
   );
