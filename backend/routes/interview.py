@@ -15,16 +15,21 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
+import config
 import services.candidate_service as candidate_service
-from agents.evidence_engine import EvidenceEngine, GeminiEvidenceEvaluator
+from agents.evidence_engine import (
+    EvidenceEngine,
+    GeminiEvidenceEvaluator,
+    LLMEvidenceEvaluator,
+)
 from agents.interview_director import InterviewDirector
-from agents.question_bank import GeminiQuestionBank
-from config import GEMINI_API_KEY
+from agents.question_bank import GeminiQuestionBank, LLMQuestionBank
 from models.interview_requests import AnswerRequest, StartInterviewRequest
 from models.interview_response import InterviewTurnResponse
 from models.interview_state import InterviewState
 from services.curriculum_service import CurriculumService
 from services.interview_service import InterviewService
+from services.llm_provider import GroqProvider, LLMProvider
 from services.session_service import SessionService
 
 router = APIRouter(prefix="/api/interview", tags=["Interview"])
@@ -32,22 +37,55 @@ router = APIRouter(prefix="/api/interview", tags=["Interview"])
 _CURRICULUM_PATH = Path(__file__).resolve().parent.parent.parent / "curriculum.json"
 
 
+def _build_provider() -> LLMProvider | None:
+    """Build the active LLM provider from configuration, if any.
+
+    A single provider instance is shared by both the question bank and
+    the evidence evaluator so the Groq client is created exactly once.
+    ``LLM_PROVIDER=gemini`` keeps the existing Gemini strategy, and any
+    other value falls back to the deterministic agents.
+    """
+    if config.LLM_PROVIDER == "groq":
+        return GroqProvider(api_key=config.GROQ_API_KEY, model_name=config.GROQ_MODEL)
+    return None
+
+
+def _build_question_bank(
+    curriculum_service: CurriculumService,
+    provider: LLMProvider | None,
+):
+    """Compose the QuestionBank strategy for the configured provider."""
+    if provider is not None:
+        return LLMQuestionBank(
+            provider=provider,
+            curriculum_service=curriculum_service,
+        )
+    if config.GEMINI_API_KEY:
+        return GeminiQuestionBank(api_key=config.GEMINI_API_KEY)
+    return None
+
+
+def _build_evaluator(provider: LLMProvider | None):
+    """Compose the EvidenceEvaluator strategy for the configured provider."""
+    if provider is not None:
+        return LLMEvidenceEvaluator(provider=provider)
+    if config.GEMINI_API_KEY:
+        return GeminiEvidenceEvaluator(api_key=config.GEMINI_API_KEY)
+    return None
+
+
 def _build_service(session_service: SessionService) -> InterviewService:
     """Compose the InterviewService with its existing collaborators."""
     curriculum_service = CurriculumService(str(_CURRICULUM_PATH))
-    question_bank = GeminiQuestionBank(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+    provider = _build_provider()
     director = InterviewDirector(
         candidate_service,
         curriculum_service,
-        question_bank=question_bank,
+        question_bank=_build_question_bank(curriculum_service, provider),
     )
     evidence_engine = EvidenceEngine(
         curriculum_service=curriculum_service,
-        evaluator=(
-            GeminiEvidenceEvaluator(api_key=GEMINI_API_KEY)
-            if GEMINI_API_KEY
-            else None
-        ),
+        evaluator=_build_evaluator(provider),
     )
     return InterviewService(
         candidate_service=candidate_service,

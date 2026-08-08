@@ -8,9 +8,9 @@ It NEVER evaluates candidate answers, NEVER scores or updates evidence,
 and NEVER decides whether a candidate should be hired — those belong
 exclusively to the Evidence Engine.
 
-Questions are sourced from a swappable ``QuestionBank`` strategy, so a
-Gemini-backed bank can replace the static one without changing the
-director's logic.
+Questions are sourced from a swappable ``QuestionBank`` strategy, so an
+LLM-backed bank (Gemini or Groq) can replace the static one without
+changing the director's logic.
 """
 
 import types
@@ -98,7 +98,7 @@ class InterviewDirector:
 
     def _next_question_for(self, state: InterviewState, competency: str) -> str:
         """Return the next unasked question from the bank for a competency."""
-        for question in self._question_bank.questions_for(competency):
+        for question in self._question_bank.questions_for(competency, state):
             if question not in self._asked_questions(state):
                 return question
         return self._fallback_question(competency)
@@ -164,7 +164,7 @@ class InterviewDirector:
             state.currentCompetency
             or (selected.competency if selected else "technicalKnowledge")
         )
-        question = self._question_bank.followup_for(competency)
+        question = self._question_bank.followup_for(competency, state)
         self._ask_question(state, question, competency)
         return InterviewResponse(
             reply="",

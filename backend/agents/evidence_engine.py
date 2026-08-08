@@ -5,10 +5,11 @@ competency state, interview DNA, and hiring confidence, and tells the
 Interview Director what to do next.
 
 Evaluation is delegated to an ``EvidenceEvaluator`` strategy: the
-deterministic ``MockEvidenceEvaluator`` is the default, and a
+deterministic ``MockEvidenceEvaluator`` is the default, a
 ``GeminiEvidenceEvaluator`` scores answers with Gemini structured output
-when a valid API key is configured, falling back to the deterministic
-path on any failure.
+when a valid API key is configured, and an ``LLMEvidenceEvaluator``
+delegates to the configured ``LLMProvider`` (e.g. Groq). Each LLM-backed
+path falls back to the deterministic evaluator on any failure.
 
 The Evidence Engine may update competency evidence/status, interview
 DNA, and hiring confidence. It never generates questions, never talks to
@@ -27,6 +28,7 @@ from pydantic import ValidationError
 from models.evidence import EvidenceEvaluation, NextAction
 from models.interview_state import CompetencyState, InterviewDNA, InterviewState
 from services.curriculum_service import CurriculumService
+from services.llm_provider import LLMProvider
 
 _VERIFICATION_THRESHOLD = 80
 
@@ -536,6 +538,94 @@ class GeminiEvidenceEvaluator(EvidenceEvaluator):
             if evaluation is not None:
                 return evaluation
         return self._fallback.evaluate(**fallback_kwargs)
+
+
+class LLMEvidenceEvaluator(EvidenceEvaluator):
+    """LLM-backed evaluator that falls back to deterministic scoring.
+
+    Delegates evaluation to an ``LLMProvider`` (e.g. a Groq-backed
+    provider) and validates the returned structured output against
+    ``EvidenceEvaluation``. The candidate answer is treated as untrusted
+    data by the provider's prompt.
+
+    The competency is always taken from the engine's known value, never
+    from the model, and the action/verification flags are normalized to
+    stay coherent with the engine's contract.
+
+    Falls back to a ``MockEvidenceEvaluator`` when no provider is
+    configured, the provider fails, or the response does not validate.
+    The fallback never fabricates a verification.
+    """
+
+    def __init__(
+        self,
+        provider: LLMProvider | None = None,
+        fallback: EvidenceEvaluator | None = None,
+    ) -> None:
+        """Initialize the evaluator with a provider and fallback."""
+        self._provider = provider
+        self._fallback = fallback or MockEvidenceEvaluator()
+
+    @staticmethod
+    def _to_evaluation(payload: dict, competency: str) -> EvidenceEvaluation:
+        """Validate a provider payload and normalize the engine contract.
+
+        The competency is always set from the engine's known value, never
+        from the model, and the action/verification flags are normalized
+        to stay coherent.
+        """
+        payload["competency"] = competency
+        evaluation = EvidenceEvaluation.model_validate(payload)
+        evaluation.followUpRequired = not evaluation.verified
+        evaluation.nextAction = (
+            "NEXT_COMPETENCY" if evaluation.verified else "FOLLOW_UP"
+        )
+        return evaluation
+
+    def evaluate(
+        self,
+        *,
+        competency: str,
+        question: str,
+        answer: str,
+        keywords: Sequence[str] = (),
+        previous_evidence: Sequence[EvidenceEvaluation] = (),
+        curriculum_context: str = "",
+    ) -> EvidenceEvaluation:
+        """Evaluate an answer with the provider, falling back to deterministic.
+
+        When no provider is configured, generation fails, or the response
+        does not validate, the fallback evaluator scores the answer so
+        the interview never breaks.
+        """
+        fallback_kwargs = {
+            "competency": competency,
+            "question": question,
+            "answer": answer,
+            "keywords": keywords,
+            "previous_evidence": previous_evidence,
+            "curriculum_context": curriculum_context,
+        }
+        if self._provider is None:
+            return self._fallback.evaluate(**fallback_kwargs)
+
+        try:
+            payload = self._provider.evaluate_answer(
+                competency=competency,
+                question=question,
+                answer=answer,
+                keywords=keywords,
+                previous_evidence=previous_evidence,
+                curriculum_context=curriculum_context,
+            )
+        except Exception:
+            payload = None
+        if payload is None:
+            return self._fallback.evaluate(**fallback_kwargs)
+        try:
+            return self._to_evaluation(payload, competency)
+        except ValidationError:
+            return self._fallback.evaluate(**fallback_kwargs)
 
 
 class EvidenceEngine:

@@ -12,16 +12,32 @@ from abc import ABC, abstractmethod
 
 import google.generativeai as genai
 
+from models.interview_state import InterviewState
+from services.curriculum_service import CurriculumService
+from services.llm_provider import LLMProvider
+
 
 class QuestionBank(ABC):
-    """Strategy interface for sourcing interview questions."""
+    """Strategy interface for sourcing interview questions.
+
+    The optional ``state`` argument lets LLM-backed banks build adaptive
+    questions from live interview context; deterministic banks ignore it.
+    """
 
     @abstractmethod
-    def questions_for(self, competency: str) -> list[str]:
+    def questions_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> list[str]:
         """Return the scenario questions available for a competency."""
 
     @abstractmethod
-    def followup_for(self, competency: str) -> str:
+    def followup_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> str:
         """Return a deeper follow-up question for a competency."""
 
 
@@ -114,11 +130,19 @@ class StaticQuestionBank(QuestionBank):
 
     _DEFAULT_FOLLOWUP: str = "Can you expand on that and describe how you would apply it in practice?"
 
-    def questions_for(self, competency: str) -> list[str]:
+    def questions_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> list[str]:
         """Return the scenario questions for a competency, if any."""
         return self._QUESTIONS.get(competency, [])
 
-    def followup_for(self, competency: str) -> str:
+    def followup_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> str:
         """Return the deeper follow-up question for a competency."""
         return self._FOLLOWUPS.get(competency, self._DEFAULT_FOLLOWUP)
 
@@ -209,7 +233,11 @@ class GeminiQuestionBank(QuestionBank):
         cleaned = re.sub(r"^```(?:json)?|```$", "", cleaned).strip()
         return json.loads(cleaned)
 
-    def questions_for(self, competency: str) -> list[str]:
+    def questions_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> list[str]:
         """Return generated scenario questions, cached per competency.
 
         Falls back to the static bank when generation is unavailable or
@@ -238,7 +266,11 @@ class GeminiQuestionBank(QuestionBank):
         self._cache[competency] = questions
         return questions
 
-    def followup_for(self, competency: str) -> str:
+    def followup_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> str:
         """Return a generated follow-up question, cached per competency.
 
         Falls back to the static bank when generation is unavailable or
@@ -258,6 +290,130 @@ class GeminiQuestionBank(QuestionBank):
                 question = str(self._parse_json(raw).get("question", "")).strip()
             except (ValueError, TypeError, KeyError):
                 question = ""
+        if not question:
+            question = self._fallback.followup_for(competency)
+        self._followup_cache[competency] = question
+        return question
+
+
+class LLMQuestionBank(QuestionBank):
+    """LLM-backed question bank with deterministic fallback.
+
+    Delegates scenario and follow-up question generation to an
+    ``LLMProvider``, enriching the request with curriculum context and
+    live interview context (recent conversation, open competencies, and
+    stage) when a session state is available. Results are cached per
+    competency so a session sees stable questions.
+
+    When no provider is configured, generation fails, or the response
+    cannot be parsed, every method falls back to a ``StaticQuestionBank``
+    so the director never breaks.
+    """
+
+    def __init__(
+        self,
+        provider: LLMProvider | None = None,
+        fallback: QuestionBank | None = None,
+        curriculum_service: CurriculumService | None = None,
+    ) -> None:
+        """Initialize the bank with a provider, fallback, and curriculum."""
+        self._provider = provider
+        self._fallback = fallback or StaticQuestionBank()
+        self._curriculum_service = curriculum_service
+        self._cache: dict[str, list[str]] = {}
+        self._followup_cache: dict[str, str] = {}
+
+    def _curriculum_context(self, competency: str) -> str:
+        """Return a human-readable curriculum context for a competency."""
+        if self._curriculum_service is None:
+            return ""
+        for topic in self._curriculum_service.get_topics():
+            if topic.title.lower() == competency.lower():
+                day = self._curriculum_service.get_day(topic.day)
+                lines = [f"Title: {day.title}"]
+                if day.tools:
+                    lines.append("Tools: " + ", ".join(day.tools))
+                lines.append("Objectives:")
+                lines.extend(f"- {objective}" for objective in day.objectives)
+                return "\n".join(lines)
+        return ""
+
+    def _conversation_context(self, state: InterviewState | None) -> str:
+        """Return recent conversation and evidence context for the prompt."""
+        if state is None:
+            return ""
+        lines = ["Recent conversation:"]
+        for message in state.conversationHistory[-6:]:
+            lines.append(f"{message.role}: {message.message}")
+        if not state.conversationHistory and state.currentQuestion:
+            lines.append(f"interviewer: {state.currentQuestion}")
+        gaps = [
+            f"- {entry.competency} (status={entry.status}, "
+            f"evidence={entry.evidenceScore}/100)"
+            for entry in state.competencies
+            if entry.status != "verified"
+        ]
+        if gaps:
+            lines.append("Open competencies / evidence gaps:")
+            lines.extend(gaps)
+        lines.append(f"Interview stage: {state.interviewStage}")
+        return "\n".join(lines)
+
+    def questions_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> list[str]:
+        """Return generated scenario questions, cached per competency.
+
+        Falls back to the static bank when the provider is unavailable or
+        yields no usable questions.
+        """
+        if competency in self._cache:
+            return self._cache[competency]
+        questions: list[str] = []
+        if self._provider is not None:
+            try:
+                generated = self._provider.questions_for(
+                    competency=competency,
+                    curriculum_context=self._curriculum_context(competency),
+                    conversation_context=self._conversation_context(state),
+                )
+            except Exception:
+                generated = None
+            if generated:
+                questions = [
+                    str(item).strip() for item in generated if str(item).strip()
+                ]
+        if not questions:
+            questions = self._fallback.questions_for(competency)
+        self._cache[competency] = questions
+        return questions
+
+    def followup_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> str:
+        """Return a generated follow-up question, cached per competency.
+
+        Falls back to the static bank when the provider is unavailable or
+        yields no usable question.
+        """
+        if competency in self._followup_cache:
+            return self._followup_cache[competency]
+        question = ""
+        if self._provider is not None:
+            try:
+                generated = self._provider.followup_for(
+                    competency=competency,
+                    curriculum_context=self._curriculum_context(competency),
+                    conversation_context=self._conversation_context(state),
+                )
+            except Exception:
+                generated = None
+            if generated:
+                question = str(generated).strip()
         if not question:
             question = self._fallback.followup_for(competency)
         self._followup_cache[competency] = question

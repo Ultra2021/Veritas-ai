@@ -4,3 +4,4 @@ pydantic
 python-dotenv
 orjson
 google-generativeai
+groq
