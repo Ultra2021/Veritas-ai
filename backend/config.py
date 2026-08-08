@@ -11,3 +11,4 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+FRONTEND_ORIGIN: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
