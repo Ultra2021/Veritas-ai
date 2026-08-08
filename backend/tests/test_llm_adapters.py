@@ -20,7 +20,7 @@ from agents.evidence_engine import (
 from agents.interview_director import InterviewDirector
 from agents.question_bank import LLMQuestionBank, StaticQuestionBank
 from models.evidence import EvidenceEvaluation
-from models.interview_state import InterviewState
+from models.interview_state import ConversationMessage, InterviewState
 from services.curriculum_service import CurriculumService
 from services.llm_provider import LLMProvider
 from services.session_service import SessionService
@@ -112,6 +112,26 @@ class TestLLMQuestionBank:
         assert bank.questions_for("RAG") == ["Q1?"]
         assert bank.questions_for("RAG") == ["Q1?"]
         assert len(provider.question_calls) == 1
+
+    def test_fallback_followup_not_permanently_cached(self):
+        provider = _FakeProvider(followup=None)
+        bank = LLMQuestionBank(provider=provider)
+        competency = "Capstone Project & Final Demo"
+        state = InterviewState(sessionId=uuid4(), candidateId="CAND-001")
+
+        variants = []
+        for _ in range(len(bank._fallback.followups_for(competency))):
+            question = bank.followup_for(competency, state)
+            assert question, "fallback should keep yielding distinct variants"
+            assert question not in variants
+            variants.append(question)
+            state.conversationHistory.append(
+                ConversationMessage(role="interviewer", message=question)
+            )
+
+        assert len(set(variants)) == len(variants)
+        assert competency not in bank._followup_cache
+        assert bank.followup_for(competency, state) == ""
 
     def test_provider_none_falls_back_to_static(self):
         provider = _FakeProvider(questions=None)

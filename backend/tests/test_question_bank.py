@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agents.question_bank import GeminiQuestionBank, StaticQuestionBank
+from services.curriculum_service import CurriculumService
 
 API_KEY = "test-api-key"
 
@@ -128,3 +129,40 @@ class TestGeminiQuestionBank:
         bank = GeminiQuestionBank(api_key=API_KEY)
         assert configured == [API_KEY]
         assert bank._model is not None
+
+
+class TestStaticQuestionBankCurriculum:
+    """The static bank must cover every curriculum competency with real,
+    non-repeating scenario questions and competency-specific follow-ups."""
+
+    def test_static_capstone_question_exists(self):
+        bank = StaticQuestionBank()
+        competency = "Capstone Project & Final Demo"
+        questions = bank.questions_for(competency)
+        assert questions
+        assert questions[0] == (
+            "Describe how you would design and demonstrate an end-to-end capstone "
+            "project, including architecture, implementation, testing, and deployment."
+        )
+        assert len(set(questions)) == len(questions)
+
+        followups = bank.followups_for(competency)
+        assert followups == [
+            "Walk me through a concrete technical decision in your capstone and explain the trade-off you would make.",
+            "What failure or limitation would you expect in that capstone, and how would you test or mitigate it?",
+        ]
+        assert bank.followup_for(competency) == followups[0]
+
+    def test_static_bank_covers_all_curriculum_competencies(self):
+        bank = StaticQuestionBank()
+        curriculum = CurriculumService(
+            str(Path(__file__).resolve().parent.parent.parent / "curriculum.json")
+        )
+        competencies = {topic.title for topic in curriculum.get_topics()}
+        assert competencies, "curriculum.json should define topics"
+        missing = [
+            competency
+            for competency in competencies
+            if not bank.questions_for(competency)
+        ]
+        assert missing == []

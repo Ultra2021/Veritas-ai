@@ -31,7 +31,12 @@ import types
 from uuid import UUID
 
 from agents.evidence_engine import EvidenceEngine
-from agents.interview_director import InterviewDirector
+from agents.interview_director import (
+    FollowUpExhaustedError,
+    InterviewDirector,
+    MAX_FOLLOWUPS_PER_COMPETENCY,
+    MIN_DISTINCT_CURRICULUM_DAYS,
+)
 from models.evidence import EvidenceEvaluation
 from models.interview_response import InterviewTurnResponse
 from models.interview_state import CompetencyState, InterviewState
@@ -58,6 +63,18 @@ class EmptyAnswerError(InterviewServiceError):
 class InvalidEvaluationError(InterviewServiceError):
     """Raised when the Evidence Engine returns an unusable evaluation."""
 
+
+class InsufficientQuestionError(InterviewServiceError):
+    """Raised when no eligible competency remains before the minimum
+    question and curriculum-day coverage requirements are met.
+
+    The deterministic handling for a curriculum that cannot supply enough
+    questions across enough days: the interview never completes early, but
+    it also never loops forever.
+    """
+
+
+MIN_QUESTIONS_TO_COMPLETE = 8
 
 _VALID_NEXT_ACTIONS = ("FOLLOW_UP", "NEXT_COMPETENCY", "VERIFY")
 
@@ -118,7 +135,11 @@ class InterviewService:
         for topic in self._candidate_service.get_interview_topics(candidate_id):
             competency = self._curriculum_topic_title(topic.day) or topic.title
             state.competencies.append(
-                CompetencyState(competency=competency, status="pending")
+                CompetencyState(
+                    competency=competency,
+                    status="pending",
+                    day=topic.day,
+                )
             )
 
     def _curriculum_topic_title(self, day: int) -> str | None:
@@ -164,14 +185,76 @@ class InterviewService:
             )
 
         if action == "FOLLOW_UP":
-            self._director.generate_followup_question(state)
-        elif self._director.select_next_competency(state) is None:
-            self._session_service.mark_completed(session_id)
-        else:
-            self._director.generate_next_question(state)
+            entry = self._current_competency_state(state)
+            if entry is not None and entry.attempts > MAX_FOLLOWUPS_PER_COMPETENCY:
+                action = "NEXT_COMPETENCY"
+            else:
+                try:
+                    self._director.generate_followup_question(state)
+                except FollowUpExhaustedError:
+                    action = "NEXT_COMPETENCY"
+                else:
+                    state.metadata.totalFollowUps += 1
+
+        if action == "NEXT_COMPETENCY":
+            presented = self._questions_presented(state)
+            covered_days = len(self._director.covered_curriculum_days(state))
+            at_minimum = (
+                presented >= MIN_QUESTIONS_TO_COMPLETE
+                and covered_days >= MIN_DISTINCT_CURRICULUM_DAYS
+            )
+            if at_minimum:
+                # Natural boundary: the minimum question and curriculum-day
+                # coverage has been reached and the current answer required
+                # no follow-up, so conclude instead of selecting another
+                # competency. No eligible competency is reopened and the
+                # full curriculum is never required.
+                self._session_service.mark_completed(session_id)
+            elif self._director.select_next_competency(state) is None:
+                # No eligible competency remains before the minimums are
+                # met: fail deterministically rather than completing early.
+                raise InsufficientQuestionError(
+                    f"Cannot continue: no eligible competency remains after "
+                    f"{presented} question(s) across {covered_days} curriculum "
+                    f"day(s); a minimum of {MIN_QUESTIONS_TO_COMPLETE} questions "
+                    f"across {MIN_DISTINCT_CURRICULUM_DAYS} distinct curriculum "
+                    f"days is required."
+                )
+            else:
+                self._director.generate_next_question(state)
 
         self._session_service.update_session(state)
         return self._build_response(state, evidence=evaluation)
+
+    def _current_competency_state(
+        self,
+        state: InterviewState,
+    ) -> CompetencyState | None:
+        """Return the ledger entry for the current competency, if any."""
+        if not state.currentCompetency:
+            return None
+        return next(
+            (
+                entry
+                for entry in state.competencies
+                if entry.competency == state.currentCompetency
+            ),
+            None,
+        )
+
+    @staticmethod
+    def _questions_presented(state: InterviewState) -> int:
+        """Return the number of questions actually presented to the candidate.
+
+        ``conversationHistory`` is authoritative: every presented question
+        (initial scenario or follow-up) is recorded as an interviewer
+        message. System, candidate, and evaluator messages never count, so
+        failed or rejected generations that never reached the candidate
+        are excluded.
+        """
+        return sum(
+            1 for message in state.conversationHistory if message.role == "interviewer"
+        )
 
     def _validate_interaction(self, state: InterviewState, answer: str) -> None:
         """Reject interactions on an invalid session or empty answer."""

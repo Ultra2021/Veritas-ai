@@ -4,8 +4,15 @@ Defines the abstraction the Interview Director uses to source interview
 questions. The static implementation is deterministic; the Gemini-backed
 strategy generates fresh questions using structured output and degrades
 gracefully to the static bank whenever Gemini is unavailable.
+
+Deterministic fallbacks are competency-specific and never pin a single
+string: ``followup_for`` rotates through the distinct variants available
+for a competency, skipping anything already asked in the session, and
+returns an empty string when the competency is exhausted so the
+Interview Director can move on.
 """
 
+import inspect
 import json
 import re
 from abc import ABC, abstractmethod
@@ -17,11 +24,44 @@ from services.curriculum_service import CurriculumService
 from services.llm_provider import LLMProvider
 
 
+def _method_accepts_state(method) -> bool:
+    """Whether a bank method accepts the optional ``state`` argument.
+
+    Custom fallback banks written against the original two-argument
+    interface (``competency`` only) must keep working, so calls that
+    include the session state are downgraded for them.
+    """
+    try:
+        parameters = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        return False
+    return any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        or (param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD and param.name == "state")
+        for param in parameters.values()
+    )
+
+
+def _call_questions_for(fallback, competency: str, state) -> list[str]:
+    """Call ``questions_for`` tolerating legacy fallback signatures."""
+    if _method_accepts_state(fallback.questions_for):
+        return fallback.questions_for(competency, state)
+    return fallback.questions_for(competency)
+
+
+def _call_followup_for(fallback, competency: str, state) -> str:
+    """Call ``followup_for`` tolerating legacy fallback signatures."""
+    if _method_accepts_state(fallback.followup_for):
+        return fallback.followup_for(competency, state)
+    return fallback.followup_for(competency)
+
+
 class QuestionBank(ABC):
     """Strategy interface for sourcing interview questions.
 
     The optional ``state`` argument lets LLM-backed banks build adaptive
-    questions from live interview context; deterministic banks ignore it.
+    questions from live interview context; deterministic banks use it to
+    avoid repeating questions within a session.
     """
 
     @abstractmethod
@@ -38,7 +78,30 @@ class QuestionBank(ABC):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return a deeper follow-up question for a competency."""
+        """Return a deeper follow-up question for a competency.
+
+        Returns an empty string when every available variant has already
+        been asked in ``state`` so callers can exhaust the competency.
+        """
+
+    @staticmethod
+    def _asked_questions(state: InterviewState | None) -> set[str]:
+        """Return the interviewer questions already asked in the session."""
+        if state is None:
+            return set()
+        return {
+            message.message
+            for message in state.conversationHistory
+            if message.role == "interviewer"
+        }
+
+    def followups_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> list[str]:
+        """Return the distinct follow-up variants available for a competency."""
+        return [self.followup_for(competency, state)]
 
 
 class StaticQuestionBank(QuestionBank):
@@ -110,25 +173,338 @@ class StaticQuestionBank(QuestionBank):
             "How do you stay current with new technologies?",
             "What do you do when a technology you know becomes outdated?",
         ],
+        "VS Code & Python Environment Setup": [
+            "How would you set up a reproducible Python development environment for a new team member?",
+            "What would you automate in your local development setup, and why?",
+            "How would you diagnose environment or dependency conflicts in a Python project?",
+        ],
+        "Local LLM & AI Coding Assistant Setup": [
+            "How would you set up a local LLM for development, and what factors would you consider?",
+            "When would you prefer a local model over a hosted API for an AI coding assistant?",
+            "How would you evaluate whether a local LLM is fast enough for interactive use?",
+        ],
+        "First AI Project, React Frontend & GitHub": [
+            "How would you structure a first AI project with a React frontend?",
+            "What would you include in the GitHub workflow for an AI project?",
+            "How would you handle secrets and environment variables across frontend and backend?",
+        ],
+        "Reading & Processing Structured Data": [
+            "How would you load and validate structured data from an external source?",
+            "How would you handle malformed or missing fields in structured data?",
+            "How would you design a pipeline to process structured data at scale?",
+        ],
+        "Reading & Processing Unstructured Data": [
+            "How would you extract useful text from unstructured documents like PDFs?",
+            "What challenges arise when processing unstructured data, and how would you handle them?",
+            "How would you clean and normalize unstructured text for downstream use?",
+        ],
+        "Building the Knowledge Base": [
+            "How would you design a knowledge base schema for a domain like healthcare?",
+            "How would you keep a knowledge base consistent with changing source documents?",
+            "How would you organize content so retrieval is accurate and fast?",
+        ],
+        "Embeddings Explained": [
+            "How would you explain embeddings and why they are useful to a colleague?",
+            "How would you choose and evaluate an embedding model for your data?",
+            "How would you debug poor retrieval caused by weak embeddings?",
+        ],
+        "Vector Databases Overview": [
+            "What would you consider when selecting a vector database for production?",
+            "How do indexing and distance metrics affect retrieval quality and speed?",
+            "When would you prefer a managed vector database over self-hosting one?",
+        ],
+        "Building & Populating the Vector Database": [
+            "How would you design the ingestion pipeline that populates a vector database?",
+            "How would you handle embeddings that are added, updated, or deleted?",
+            "How would you ensure the vector index stays consistent with the source of truth?",
+        ],
+        "The Retrieval & Matching Engine": [
+            "How would you design a retrieval engine that returns relevant results quickly?",
+            "How would you combine semantic search with keyword or hybrid retrieval?",
+            "How would you evaluate and tune retrieval quality against user queries?",
+        ],
+        "RAG End-to-End & LLM API Basics": [
+            "How would you build an end-to-end RAG pipeline for a domain chatbot?",
+            "How would you pass retrieved context to an LLM without exceeding limits?",
+            "How would you measure whether RAG is actually improving answers?",
+        ],
+        "Prompt Engineering Fundamentals": [
+            "What makes a well-engineered prompt, and how would you iterate on it?",
+            "How would you measure whether one prompt is better than another?",
+            "How would you design system and user prompts for a healthcare chatbot?",
+        ],
+        "Advanced Prompting: Function Calling & Structured Outputs": [
+            "How does function calling let an LLM interact with external tools?",
+            "How would you validate structured output from a model against a schema?",
+            "What happens when a model calls a tool with invalid arguments, and how would you handle it?",
+        ],
+        "Fine-Tuning: Concepts & When to Use It": [
+            "When would you choose fine-tuning over prompt engineering, and why?",
+            "What data would you need to fine-tune a model responsibly?",
+            "How would you evaluate a fine-tuned model against the base model?",
+        ],
+        "Fine-Tuning: Hands-On with LoRA & QLoRA": [
+            "How would you fine-tune a model with LoRA, and what resources would it require?",
+            "What hyperparameters matter most when fine-tuning, and how would you tune them?",
+            "How would you detect overfitting during fine-tuning?",
+        ],
+        "Chatbot Backend & API Integration": [
+            "How would you design the backend API for a chatbot?",
+            "How would you handle authentication and rate limiting on chatbot endpoints?",
+            "How would you structure the integration between the chatbot and an LLM provider?",
+        ],
+        "Chatbot Frontend Development": [
+            "How would you build a responsive chat interface?",
+            "How would you manage chat state and message history in the frontend?",
+            "How would you handle errors and loading states in a chat UI?",
+        ],
+        "Full-Stack Integration & Streaming Responses": [
+            "How would you integrate a streaming response end-to-end?",
+            "How would you handle partial tokens arriving over the wire?",
+            "How would you keep the UI responsive while streaming long answers?",
+        ],
+        "Response Formatting & Rich Outputs": [
+            "How would you format model output for rich rendering like markdown or tables?",
+            "How would you sanitize model output before rendering it to users?",
+            "How would you handle formatting when the model returns malformed content?",
+        ],
+        "Conversation Memory & Context Management": [
+            "How would you manage conversation history for a multi-turn chatbot?",
+            "How would you summarize or truncate context when it grows too large?",
+            "How would you persist memory across sessions for a user?",
+        ],
+        "Agentic Frameworks: LangChain Agents & Tool Use": [
+            "How would you build an agent that uses tools through a framework like LangChain?",
+            "How would you design the loop where an agent decides which tool to call?",
+            "How would you prevent an agent from misusing a tool or going off-track?",
+        ],
+        "Model Context Protocol (MCP)": [
+            "What is the Model Context Protocol, and what problem does it solve?",
+            "How would you expose your chatbot's tools through MCP?",
+            "How would you secure an MCP server that clients connect to?",
+        ],
+        "Agentic Chatbot Integration": [
+            "How would you integrate agentic behavior into an existing chatbot?",
+            "How would you let users opt into agentic features safely?",
+            "How would you evaluate whether an agentic chatbot is actually helping users?",
+        ],
+        "Chatbot Evaluation & Testing": [
+            "How would you evaluate chatbot answer quality systematically?",
+            "How would you build an evaluation set of representative questions?",
+            "How would you test edge cases like toxic input or PII in prompts?",
+        ],
+        "Performance Optimization & Cost Management": [
+            "How would you reduce latency and cost of an LLM application?",
+            "How would you decide between caching, smaller models, and better prompts?",
+            "How would you track token usage and set budgets?",
+        ],
+        "Security, Privacy & Guardrails": [
+            "What security considerations matter when exposing an AI chatbot over an API?",
+            "How would you protect a chatbot against prompt injection?",
+            "How would you handle PII and sensitive data in conversation history?",
+        ],
+        "Docker & Kubernetes Deployment": [
+            "How would you containerize a chatbot application with Docker?",
+            "How would you deploy and scale the application on Kubernetes?",
+            "Why would a container restart unexpectedly, and how would you debug it?",
+        ],
+        "Monitoring, Logging & Observability": [
+            "What metrics would you monitor for a production chatbot?",
+            "How would you implement logging and tracing across an LLM pipeline?",
+            "How would you alert on quality or latency degradation?",
+        ],
+        "Production Readiness & Final Testing": [
+            "How would you prepare an AI application for production?",
+            "How would you test for load, failure, and security before release?",
+            "How would you plan a safe rollout of a new model or feature?",
+        ],
+        "Capstone Project & Final Demo": [
+            "Describe how you would design and demonstrate an end-to-end capstone project, including architecture, implementation, testing, and deployment.",
+            "How would you scope a capstone so it is achievable yet impressive?",
+            "How would you present the capstone to stakeholders and handle questions?",
+        ],
     }
 
-    _FOLLOWUPS: dict[str, str] = {
-        "Embeddings": "How would you evaluate whether your embedding model produces good representations?",
-        "Docker": "How would you handle container orchestration and health checks in production?",
-        "RAG": "When would you choose hybrid retrieval over semantic search?",
-        "Vector Databases": "When would you prefer a managed vector database over a self-hosted one?",
-        "Multi-Agent Orchestration": "When would multiple agents provide more value than a single agent?",
-        "Prompt Engineering": "How would you measure whether one prompt is better than another?",
-        "Function Calling": "How would you validate structured output from a model?",
-        "Security": "How would you protect a chatbot against prompt injection?",
-        "technicalKnowledge": "Can you go deeper into how you would implement that in a production system?",
-        "communication": "How would you adapt that explanation for a less technical audience?",
-        "problemSolving": "What alternatives did you consider, and why did you choose that approach?",
-        "leadership": "How did you handle disagreement within your team in that situation?",
-        "learningAbility": "What was the hardest part of learning that, and how did you overcome it?",
+    _FOLLOWUPS: dict[str, list[str]] = {
+        "Embeddings": [
+            "How would you evaluate whether your embedding model produces good representations?",
+            "When would you choose a different embedding model or dimension, and why?",
+        ],
+        "Docker": [
+            "How would you handle container orchestration and health checks in production?",
+            "What would you include in a Docker image to make a container easy to debug?",
+        ],
+        "RAG": [
+            "When would you choose hybrid retrieval over semantic search?",
+            "How would you improve retrieval when the top results miss the intended answer?",
+        ],
+        "Vector Databases": [
+            "When would you prefer a managed vector database over a self-hosted one?",
+            "How would you migrate a vector database without downtime?",
+        ],
+        "Multi-Agent Orchestration": [
+            "When would multiple agents provide more value than a single agent?",
+            "How would you decide the responsibilities and boundaries between agents?",
+        ],
+        "Prompt Engineering": [
+            "How would you measure whether one prompt is better than another?",
+            "How would you iterate when a prompt works for some inputs but not others?",
+        ],
+        "Function Calling": [
+            "How would you validate structured output from a model?",
+            "How would you handle a model that invokes a tool with hallucinated arguments?",
+        ],
+        "Security": [
+            "How would you protect a chatbot against prompt injection?",
+            "How would you respond to a discovered vulnerability in the LLM integration?",
+        ],
+        "technicalKnowledge": [
+            "Can you go deeper into how you would implement that in a production system?",
+            "What trade-offs did you weigh, and how would you decide differently next time?",
+        ],
+        "communication": [
+            "How would you adapt that explanation for a less technical audience?",
+            "How would you know whether your audience actually understood the explanation?",
+        ],
+        "problemSolving": [
+            "What alternatives did you consider, and why did you choose that approach?",
+            "How would you verify your solution actually fixed the root cause?",
+        ],
+        "leadership": [
+            "How did you handle disagreement within your team in that situation?",
+            "How would you measure the impact of your leadership in that scenario?",
+        ],
+        "learningAbility": [
+            "What was the hardest part of learning that, and how did you overcome it?",
+            "How would you teach that same skill to someone else?",
+        ],
+        "VS Code & Python Environment Setup": [
+            "Walk me through how you would configure a new developer's environment to match the team's tooling.",
+            "What tools would you standardize on for Python environments, and what trade-offs do they have?",
+        ],
+        "Local LLM & AI Coding Assistant Setup": [
+            "What hardware or resource constraints would you plan for when running a local LLM?",
+            "How would you compare a local and a hosted assistant on latency, cost, and privacy?",
+        ],
+        "First AI Project, React Frontend & GitHub": [
+            "Walk me through how you would version and review a pull request for an AI feature.",
+            "What would you put in the README so a new contributor could run the project?",
+        ],
+        "Reading & Processing Structured Data": [
+            "What validation rules would you apply before storing structured data?",
+            "How would you handle schema changes in a data source you consume?",
+        ],
+        "Reading & Processing Unstructured Data": [
+            "How would you detect and handle duplicate or near-duplicate content across documents?",
+            "What would you do when document text extraction produces garbled output?",
+        ],
+        "Building the Knowledge Base": [
+            "How would you decide what belongs in the knowledge base versus the raw corpus?",
+            "How would you evaluate whether the knowledge base covers the questions users ask?",
+        ],
+        "Embeddings Explained": [
+            "How would you measure whether one embedding model captures semantics better than another?",
+            "When would you embed text at different granularities, and why?",
+        ],
+        "Vector Databases Overview": [
+            "How would you benchmark candidate vector databases against your workload?",
+            "What happens to retrieval quality when your vector index grows, and how would you handle it?",
+        ],
+        "Building & Populating the Vector Database": [
+            "How would you re-embed existing documents when you change embedding models?",
+            "How would you backfill a large corpus without disrupting serving?",
+        ],
+        "The Retrieval & Matching Engine": [
+            "How would you diagnose queries that return irrelevant results?",
+            "How would you test retrieval at scale for latency and accuracy?",
+        ],
+        "RAG End-to-End & LLM API Basics": [
+            "How would you handle the case where retrieved context is irrelevant or conflicting?",
+            "What would you do when an LLM API call fails mid-request?",
+        ],
+        "Prompt Engineering Fundamentals": [
+            "How would you evaluate a prompt change to confirm it improved output quality?",
+            "How would you structure a prompt to keep it robust across model versions?",
+        ],
+        "Advanced Prompting: Function Calling & Structured Outputs": [
+            "How would you handle a model that invokes a tool with hallucinated arguments?",
+            "How would you design the schema so the model reliably returns structured data?",
+        ],
+        "Fine-Tuning: Concepts & When to Use It": [
+            "How would you prevent fine-tuning from degrading general capabilities?",
+            "What risks would you consider before fine-tuning on sensitive data?",
+        ],
+        "Fine-Tuning: Hands-On with LoRA & QLoRA": [
+            "Walk me through a training run and how you would monitor loss and evaluation metrics.",
+            "How would you choose the rank and target modules for a LoRA adapter?",
+        ],
+        "Chatbot Backend & API Integration": [
+            "How would you version and evolve the chatbot API without breaking clients?",
+            "How would you handle long-running or streaming requests from the backend?",
+        ],
+        "Chatbot Frontend Development": [
+            "How would you optimize the frontend when messages grow large?",
+            "How would you make the chat UI accessible to a broad set of users?",
+        ],
+        "Full-Stack Integration & Streaming Responses": [
+            "How would you reconnect or resume a stream that drops mid-response?",
+            "How would you test streaming behavior across browsers and network conditions?",
+        ],
+        "Response Formatting & Rich Outputs": [
+            "How would you render structured output such as code blocks reliably?",
+            "What would you do when model output breaks the frontend layout?",
+        ],
+        "Conversation Memory & Context Management": [
+            "How would you decide what to keep in memory versus what to discard?",
+            "How would you handle sensitive information that should not persist in memory?",
+        ],
+        "Agentic Frameworks: LangChain Agents & Tool Use": [
+            "How would you bound the number of steps an agent can take?",
+            "How would you trace and debug a multi-step agent decision?",
+        ],
+        "Model Context Protocol (MCP)": [
+            "How would you handle version compatibility between MCP clients and servers?",
+            "How would you test that an MCP tool returns correctly structured results?",
+        ],
+        "Agentic Chatbot Integration": [
+            "How would you fall back to a simpler mode when an agent fails?",
+            "How would you surface agent actions to the user for transparency?",
+        ],
+        "Chatbot Evaluation & Testing": [
+            "How would you measure whether a model or prompt change improves answers?",
+            "How would you monitor answer quality in production over time?",
+        ],
+        "Performance Optimization & Cost Management": [
+            "How would you profile where latency and cost actually go in the stack?",
+            "How would you optimize while preserving answer quality?",
+        ],
+        "Security, Privacy & Guardrails": [
+            "How would you design guardrails that block harmful output without blocking useful answers?",
+            "How would you respond to a discovered vulnerability in the LLM integration?",
+        ],
+        "Docker & Kubernetes Deployment": [
+            "How would you manage configuration and secrets across deployment environments?",
+            "How would you roll out a new model version without downtime?",
+        ],
+        "Monitoring, Logging & Observability": [
+            "How would you correlate a poor answer with the logs to find the root cause?",
+            "What dashboards would you build for the interview pipeline, and why?",
+        ],
+        "Production Readiness & Final Testing": [
+            "What would your pre-release checklist include, and how would you enforce it?",
+            "How would you define rollback criteria for a bad release?",
+        ],
+        "Capstone Project & Final Demo": [
+            "Walk me through a concrete technical decision in your capstone and explain the trade-off you would make.",
+            "What failure or limitation would you expect in that capstone, and how would you test or mitigate it?",
+        ],
     }
 
-    _DEFAULT_FOLLOWUP: str = "Can you expand on that and describe how you would apply it in practice?"
+    _DEFAULT_FOLLOWUPS: tuple[str, ...] = (
+        "Can you expand on that and describe how you would apply it in practice?",
+        "Walk me through a specific example where you applied that in practice.",
+        "What trade-offs would you weigh before applying that approach?",
+    )
 
     def questions_for(
         self,
@@ -143,8 +519,25 @@ class StaticQuestionBank(QuestionBank):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return the deeper follow-up question for a competency."""
-        return self._FOLLOWUPS.get(competency, self._DEFAULT_FOLLOWUP)
+        """Return the next unasked follow-up question for a competency.
+
+        Returns an empty string when every variant has already been
+        asked so the caller can exhaust the competency.
+        """
+        asked = self._asked_questions(state)
+        candidates = self._FOLLOWUPS.get(competency, list(self._DEFAULT_FOLLOWUPS))
+        for candidate in candidates:
+            if candidate not in asked:
+                return candidate
+        return ""
+
+    def followups_for(
+        self,
+        competency: str,
+        state: InterviewState | None = None,
+    ) -> list[str]:
+        """Return all distinct follow-up variants for a competency."""
+        return self._FOLLOWUPS.get(competency, list(self._DEFAULT_FOLLOWUPS))
 
 
 class GeminiQuestionBank(QuestionBank):
@@ -152,10 +545,11 @@ class GeminiQuestionBank(QuestionBank):
 
     Generates scenario and follow-up questions using Gemini's structured
     output (``response_mime_type="application/json"`` with a
-    ``response_schema``), caching the result per competency so a session
-    sees stable questions. When no API key is configured, generation
-    fails, or the response cannot be parsed, every method falls back to a
-    ``StaticQuestionBank`` so the director never breaks.
+    ``response_schema``), caching only successful LLM-generated results
+    per competency. When no API key is configured, generation fails, or
+    the response cannot be parsed, every method falls back to a
+    ``StaticQuestionBank``; a fallback result is never cached, so a
+    transient failure cannot pin a single question for the session.
     """
 
     _DEFAULT_MODEL = "gemini-2.0-flash"
@@ -240,8 +634,9 @@ class GeminiQuestionBank(QuestionBank):
     ) -> list[str]:
         """Return generated scenario questions, cached per competency.
 
-        Falls back to the static bank when generation is unavailable or
-        yields no usable questions.
+        Only successfully generated questions are cached. Falls back to
+        the static bank when generation is unavailable or yields no
+        usable questions without caching the fallback.
         """
         if competency in self._cache:
             return self._cache[competency]
@@ -262,7 +657,7 @@ class GeminiQuestionBank(QuestionBank):
             except (ValueError, TypeError, KeyError):
                 questions = []
         if not questions:
-            questions = self._fallback.questions_for(competency)
+            return _call_questions_for(self._fallback, competency, state)
         self._cache[competency] = questions
         return questions
 
@@ -271,12 +666,18 @@ class GeminiQuestionBank(QuestionBank):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return a generated follow-up question, cached per competency.
+        """Return a generated follow-up question that has not been asked.
 
-        Falls back to the static bank when generation is unavailable or
-        yields no usable question.
+        A cached LLM result is reused while unique; once it has been
+        asked, a fresh one is generated. Fallback results are returned
+        for the current turn but never cached. Returns an empty string
+        when no unique question is available.
         """
-        if competency in self._followup_cache:
+        asked = self._asked_questions(state)
+        if (
+            competency in self._followup_cache
+            and self._followup_cache[competency] not in asked
+        ):
             return self._followup_cache[competency]
         question = ""
         prompt = (
@@ -290,10 +691,25 @@ class GeminiQuestionBank(QuestionBank):
                 question = str(self._parse_json(raw).get("question", "")).strip()
             except (ValueError, TypeError, KeyError):
                 question = ""
-        if not question:
-            question = self._fallback.followup_for(competency)
-        self._followup_cache[competency] = question
-        return question
+        if question and question not in asked:
+            self._followup_cache[competency] = question
+            return question
+        return self._next_static_followup(competency, state, asked)
+
+    def _next_static_followup(
+        self,
+        competency: str,
+        state: InterviewState | None,
+        asked: set[str],
+    ) -> str:
+        """Return the first unasked static follow-up variant, if any."""
+        fallback = _call_followup_for(self._fallback, competency, state)
+        if fallback and fallback not in asked:
+            return fallback
+        for candidate in self._fallback.followups_for(competency, state):
+            if candidate and candidate not in asked:
+                return candidate
+        return ""
 
 
 class LLMQuestionBank(QuestionBank):
@@ -302,12 +718,10 @@ class LLMQuestionBank(QuestionBank):
     Delegates scenario and follow-up question generation to an
     ``LLMProvider``, enriching the request with curriculum context and
     live interview context (recent conversation, open competencies, and
-    stage) when a session state is available. Results are cached per
-    competency so a session sees stable questions.
-
-    When no provider is configured, generation fails, or the response
-    cannot be parsed, every method falls back to a ``StaticQuestionBank``
-    so the director never breaks.
+    stage) when a session state is available. Only successful LLM
+    results are cached; deterministic fallbacks are used for the current
+    turn and never cached, so a provider failure cannot pin a single
+    question for the session.
     """
 
     def __init__(
@@ -366,8 +780,9 @@ class LLMQuestionBank(QuestionBank):
     ) -> list[str]:
         """Return generated scenario questions, cached per competency.
 
-        Falls back to the static bank when the provider is unavailable or
-        yields no usable questions.
+        Only successfully generated questions are cached. Falls back to
+        the static bank when the provider is unavailable or yields no
+        usable questions without caching the fallback.
         """
         if competency in self._cache:
             return self._cache[competency]
@@ -386,7 +801,7 @@ class LLMQuestionBank(QuestionBank):
                     str(item).strip() for item in generated if str(item).strip()
                 ]
         if not questions:
-            questions = self._fallback.questions_for(competency)
+            return _call_questions_for(self._fallback, competency, state)
         self._cache[competency] = questions
         return questions
 
@@ -395,12 +810,18 @@ class LLMQuestionBank(QuestionBank):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return a generated follow-up question, cached per competency.
+        """Return a generated follow-up question that has not been asked.
 
-        Falls back to the static bank when the provider is unavailable or
-        yields no usable question.
+        A cached LLM result is reused while unique; once it has been
+        asked, a fresh one is generated. Fallback results are returned
+        for the current turn but never cached. Returns an empty string
+        when no unique question is available.
         """
-        if competency in self._followup_cache:
+        asked = self._asked_questions(state)
+        if (
+            competency in self._followup_cache
+            and self._followup_cache[competency] not in asked
+        ):
             return self._followup_cache[competency]
         question = ""
         if self._provider is not None:
@@ -414,7 +835,22 @@ class LLMQuestionBank(QuestionBank):
                 generated = None
             if generated:
                 question = str(generated).strip()
-        if not question:
-            question = self._fallback.followup_for(competency)
-        self._followup_cache[competency] = question
-        return question
+        if question and question not in asked:
+            self._followup_cache[competency] = question
+            return question
+        return self._next_static_followup(competency, state, asked)
+
+    def _next_static_followup(
+        self,
+        competency: str,
+        state: InterviewState | None,
+        asked: set[str],
+    ) -> str:
+        """Return the first unasked static follow-up variant, if any."""
+        fallback = _call_followup_for(self._fallback, competency, state)
+        if fallback and fallback not in asked:
+            return fallback
+        for candidate in self._fallback.followups_for(competency, state):
+            if candidate and candidate not in asked:
+                return candidate
+        return ""

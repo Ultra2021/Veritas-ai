@@ -44,6 +44,7 @@ class CompetencyState(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     competency: str
+    day: int | None = Field(default=None, ge=1)
     status: CompetencyStatus = "pending"
     evidenceScore: int = Field(default=0, ge=0, le=100)
     attempts: int = Field(default=0, ge=0)
