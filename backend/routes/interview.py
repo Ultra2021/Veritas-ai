@@ -18,6 +18,8 @@ from fastapi import APIRouter, Depends
 import services.candidate_service as candidate_service
 from agents.evidence_engine import EvidenceEngine
 from agents.interview_director import InterviewDirector
+from agents.question_bank import GeminiQuestionBank
+from config import GEMINI_API_KEY
 from models.interview_requests import AnswerRequest, StartInterviewRequest
 from models.interview_response import InterviewTurnResponse
 from models.interview_state import InterviewState
@@ -33,7 +35,12 @@ _CURRICULUM_PATH = Path(__file__).resolve().parent.parent.parent / "curriculum.j
 def _build_service(session_service: SessionService) -> InterviewService:
     """Compose the InterviewService with its existing collaborators."""
     curriculum_service = CurriculumService(str(_CURRICULUM_PATH))
-    director = InterviewDirector(candidate_service, curriculum_service)
+    question_bank = GeminiQuestionBank(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+    director = InterviewDirector(
+        candidate_service,
+        curriculum_service,
+        question_bank=question_bank,
+    )
     evidence_engine = EvidenceEngine(curriculum_service=curriculum_service)
     return InterviewService(
         candidate_service=candidate_service,

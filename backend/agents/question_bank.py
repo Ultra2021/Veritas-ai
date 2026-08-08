@@ -1,11 +1,16 @@
 """Question bank strategy for the Interview Director.
 
 Defines the abstraction the Interview Director uses to source interview
-questions. The static implementation is deterministic; a Gemini-backed
-strategy can replace it in a later module without changing the director.
+questions. The static implementation is deterministic; the Gemini-backed
+strategy generates fresh questions using structured output and degrades
+gracefully to the static bank whenever Gemini is unavailable.
 """
 
+import json
+import re
 from abc import ABC, abstractmethod
+
+import google.generativeai as genai
 
 
 class QuestionBank(ABC):
@@ -116,3 +121,144 @@ class StaticQuestionBank(QuestionBank):
     def followup_for(self, competency: str) -> str:
         """Return the deeper follow-up question for a competency."""
         return self._FOLLOWUPS.get(competency, self._DEFAULT_FOLLOWUP)
+
+
+class GeminiQuestionBank(QuestionBank):
+    """Gemini-backed question bank with deterministic fallback.
+
+    Generates scenario and follow-up questions using Gemini's structured
+    output (``response_mime_type="application/json"`` with a
+    ``response_schema``), caching the result per competency so a session
+    sees stable questions. When no API key is configured, generation
+    fails, or the response cannot be parsed, every method falls back to a
+    ``StaticQuestionBank`` so the director never breaks.
+    """
+
+    _DEFAULT_MODEL = "gemini-2.0-flash"
+
+    _QUESTIONS_SCHEMA: dict = {
+        "type": "object",
+        "properties": {
+            "questions": {
+                "type": "array",
+                "items": {"type": "string"},
+            }
+        },
+        "required": ["questions"],
+    }
+
+    _FOLLOWUP_SCHEMA: dict = {
+        "type": "object",
+        "properties": {"question": {"type": "string"}},
+        "required": ["question"],
+    }
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str = _DEFAULT_MODEL,
+        fallback: QuestionBank | None = None,
+    ) -> None:
+        """Initialize the bank with a key, model, and fallback strategy.
+
+        The Gemini model is only constructed when ``api_key`` is provided;
+        otherwise the bank behaves exactly like its fallback.
+        """
+        self._fallback = fallback or StaticQuestionBank()
+        self._cache: dict[str, list[str]] = {}
+        self._followup_cache: dict[str, str] = {}
+        self._model = None
+        if api_key:
+            genai.configure(api_key=api_key)
+            self._model = genai.GenerativeModel(
+                model_name,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.7,
+                    max_output_tokens=512,
+                    response_mime_type="application/json",
+                    response_schema=self._QUESTIONS_SCHEMA,
+                ),
+            )
+
+    def _generate(self, prompt: str, schema: dict) -> str:
+        """Return a raw structured response, or an empty string on failure.
+
+        Any exception during configuration, generation, or parsing results
+        in an empty string so callers can fall back to the static bank.
+        """
+        if self._model is None:
+            return ""
+        try:
+            response = self._model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.7,
+                    max_output_tokens=512,
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                ),
+            )
+            return response.text
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _parse_json(text: str) -> dict:
+        """Parse a JSON object from a model response, tolerating fences."""
+        cleaned = text.strip()
+        cleaned = re.sub(r"^```(?:json)?|```$", "", cleaned).strip()
+        return json.loads(cleaned)
+
+    def questions_for(self, competency: str) -> list[str]:
+        """Return generated scenario questions, cached per competency.
+
+        Falls back to the static bank when generation is unavailable or
+        yields no usable questions.
+        """
+        if competency in self._cache:
+            return self._cache[competency]
+        questions: list[str] = []
+        prompt = (
+            f"Generate three interview questions that probe the candidate's "
+            f"competency in '{competency}'. Return ONLY a JSON object with a "
+            f"'questions' array of strings."
+        )
+        raw = self._generate(prompt, self._QUESTIONS_SCHEMA)
+        if raw:
+            try:
+                questions = [
+                    str(item).strip()
+                    for item in self._parse_json(raw).get("questions", [])
+                    if str(item).strip()
+                ]
+            except (ValueError, TypeError, KeyError):
+                questions = []
+        if not questions:
+            questions = self._fallback.questions_for(competency)
+        self._cache[competency] = questions
+        return questions
+
+    def followup_for(self, competency: str) -> str:
+        """Return a generated follow-up question, cached per competency.
+
+        Falls back to the static bank when generation is unavailable or
+        yields no usable question.
+        """
+        if competency in self._followup_cache:
+            return self._followup_cache[competency]
+        question = ""
+        prompt = (
+            f"Ask one deeper follow-up question about the candidate's "
+            f"competency in '{competency}'. Return ONLY a JSON object with a "
+            f"'question' string."
+        )
+        raw = self._generate(prompt, self._FOLLOWUP_SCHEMA)
+        if raw:
+            try:
+                question = str(self._parse_json(raw).get("question", "")).strip()
+            except (ValueError, TypeError, KeyError):
+                question = ""
+        if not question:
+            question = self._fallback.followup_for(competency)
+        self._followup_cache[competency] = question
+        return question
