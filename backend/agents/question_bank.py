@@ -120,6 +120,7 @@ _VAGUE_PATTERNS = (
     "how would you handle this",
     "how would you address this",
     "was not fully addressed",
+    "beyond what you mentioned regarding",
 )
 
 
@@ -135,72 +136,76 @@ def _is_overly_generic_followup(question: str) -> bool:
 
 
 def _build_targeted_fallback(competency: str, gap: str, candidate_answer: str | None = None, attempt: int = 1) -> str:
-    """Build a clean, grammatical, and technically specific fallback question for a gap."""
-    attempt_1_starters = [
-        f"Can you explain the core concepts and design principles behind {competency}?",
-        f"What are the fundamental architectural principles of {competency}?",
-        f"How do you structure the core design logic when working with {competency}?",
-        f"Walk me through the primary technical considerations for {competency}.",
-    ]
-    attempt_2_starters = [
-        f"What key trade-offs and operational challenges would you consider when implementing {competency}?",
-        f"How would you test, debug, and monitor performance for {competency} in production?",
-        f"What specific edge cases or failure modes would you prepare for when deploying {competency}?",
-        f"How do you weigh latency, cost, and reliability trade-offs in {competency}?",
-    ]
-
+    """Build a clean, grammatical, and direct technical question targeting a specific gap."""
     if not gap or "no substantive answer" in gap.lower() or "no answer" in gap.lower():
-        starters = attempt_1_starters if attempt == 1 else attempt_2_starters
-        idx = abs(hash(competency) + attempt) % len(starters)
-        return starters[idx]
+        attempt_1_starters = [
+            f"Walk me through how you would implement and test {competency} in a production environment.",
+            f"What primary architectural trade-offs do you consider when designing {competency}?",
+        ]
+        return attempt_1_starters[(attempt - 1) % len(attempt_1_starters)]
 
     gap_clean = gap.strip().rstrip(".")
     gap_lower = gap_clean.lower()
 
-    # Special case handling for common abstract evaluation gap phrases
-    if "reasoning could be made more explicit" in gap_lower or "reasoning" in gap_lower:
-        if attempt == 1:
-            return f"How would you explain the architectural trade-offs and underlying reasoning behind your approach to {competency}?"
-        else:
-            return f"What specific architectural decisions and technical trade-offs led to your choice in {competency}?"
-
-    if "lacks specific technical depth" in gap_lower or "technical depth" in gap_lower:
-        if attempt == 1:
-            return f"Walk me through the deeper technical implementation and edge cases when working with {competency}."
-        else:
-            return f"What specific failure modes or performance bottlenecks would you prepare for in {competency}?"
-
-    if "explanation or examples" in gap_lower or "more explanation" in gap_lower:
-        if attempt == 1:
-            return f"Could you walk through a concrete production example of how you implemented {competency}?"
-        else:
-            return f"How would you step-by-step implement and verify this solution for {competency}?"
-
-    # Strip generic prefix fragments if present
-    for prefix in ("lacks ", "missing ", "limited discussion of ", "lack of ", "no "):
+    # Strip generic prefix and suffix fragments if present
+    for prefix in ("lacks ", "missing ", "limited discussion of ", "lack of ", "no ", "evidence for "):
         if gap_lower.startswith(prefix):
             gap_clean = gap_clean[len(prefix):]
             gap_lower = gap_clean.lower()
             break
 
-    # Build contextual fallback incorporating candidate answer terms if practical
-    if candidate_answer and len(candidate_answer.split()) >= 3:
-        words = [
-            word.strip(".,!?\"'()")
-            for word in candidate_answer.split()
-            if len(word) > 3 and word.lower() not in _QUESTION_STOPWORDS
-        ]
-        if words:
-            ctx_terms = ", ".join(words[:2])
-            if attempt == 1:
-                return f"Beyond what you mentioned regarding {ctx_terms}, how would you implement {gap_lower} for {competency}?"
-            else:
-                return f"Building on {ctx_terms}, what trade-offs would you weigh when addressing {gap_lower} in {competency}?"
+    for suffix in (
+        " not addressed",
+        " not explained",
+        " not detailed",
+        " is missing",
+        " is not yet sufficient",
+        " not fully detailed",
+        " is not addressed",
+        " is not fully detailed",
+    ):
+        if gap_lower.endswith(suffix):
+            gap_clean = gap_clean[:-len(suffix)]
+            gap_lower = gap_clean.lower()
+            break
 
-    if attempt == 1:
-        return f"How would you address {gap_lower} when implementing {competency}?"
-    else:
-        return f"What trade-offs and edge cases would you evaluate when implementing {gap_lower} for {competency}?"
+    # Domain-specific clean technical questions
+    if "security" in gap_lower or "secret" in gap_lower:
+        return f"How would you secure the container and manage secrets when deploying {competency} to production?"
+
+    if "orchestrat" in gap_lower or "scaling" in gap_lower or "kubernetes" in gap_lower:
+        return f"How would you deploy and scale this application on Kubernetes using {competency}?"
+
+    if "multi-stage" in gap_lower or "optimization" in gap_lower or "image size" in gap_lower:
+        return f"How would you structure a multi-stage build to optimize image size and build caching for {competency}?"
+
+    if "failure" in gap_lower or "unavailable" in gap_lower or "fallback" in gap_lower:
+        return f"How would your system behave if the underlying services or servers for {competency} became unavailable during a request?"
+
+    if "version" in gap_lower or "compatibility" in gap_lower:
+        return f"How would you maintain compatibility between different client and server versions for {competency}?"
+
+    if "hybrid" in gap_lower or "rerank" in gap_lower:
+        return f"How would you implement hybrid retrieval and reranking to optimize search quality for {competency}?"
+
+    if "metric" in gap_lower or "benchmark" in gap_lower or "distance" in gap_lower:
+        return f"How would you select the distance metric and benchmark retrieval quality for {competency}?"
+
+    if "injection" in gap_lower or "sanitiz" in gap_lower or "guardrail" in gap_lower:
+        return f"How would you implement input sanitization and guardrails to protect {competency} against prompt injection?"
+
+    if "invalidation" in gap_lower or "stale" in gap_lower:
+        return f"How would you handle cache invalidation and stale data updates when using {competency}?"
+
+    # Varied, natural question patterns for any generic or custom technical gap
+    patterns = [
+        f"How would you handle {gap_clean} when deploying {competency} in production?",
+        f"What key architectural trade-offs would you consider when implementing {gap_clean} for {competency}?",
+        f"How would you test, debug, and monitor {gap_clean} in a production {competency} environment?",
+        f"What specific edge cases or failure modes would you prepare for regarding {gap_clean} in {competency}?",
+        f"How do you weigh latency, cost, and reliability trade-offs for {gap_clean} in {competency}?",
+    ]
+    return patterns[(attempt - 1) % len(patterns)]
 
 
 class QuestionBank(ABC):
@@ -694,17 +699,18 @@ class StaticQuestionBank(QuestionBank):
                         if ev.competency == competency
                     ),
                 )
-                gap_idx = min(max(0, attempts - 1), len(latest_eval.gaps) - 1)
-                gap = latest_eval.gaps[gap_idx]
-                for try_att in range(attempts, attempts + 5):
-                    targeted = _build_targeted_fallback(
-                        competency=competency,
-                        gap=gap,
-                        candidate_answer=state.currentAnswer,
-                        attempt=try_att,
-                    )
-                    if not self._is_asked_question(targeted, state) and not _is_overly_generic_followup(targeted):
-                        return targeted
+                for gap in latest_eval.gaps:
+                    if "not yet sufficient" in gap.lower() or "evidence for" in gap.lower():
+                        continue
+                    for try_att in range(attempts, attempts + 5):
+                        targeted = _build_targeted_fallback(
+                            competency=competency,
+                            gap=gap,
+                            candidate_answer=state.currentAnswer,
+                            attempt=try_att,
+                        )
+                        if not self._is_asked_question(targeted, state) and not _is_overly_generic_followup(targeted):
+                            return targeted
 
         candidates = self._FOLLOWUPS.get(competency, list(self._DEFAULT_FOLLOWUPS))
         for candidate in candidates:

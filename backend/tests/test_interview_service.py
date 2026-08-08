@@ -1218,9 +1218,9 @@ class TestOptionCAdaptiveInterviewLength:
 
     def test_strong_answers_produce_shorter_interview(self):
         """Verify a candidate with quick verified evidence completes as soon as competencies are verified."""
-        class VerifyAllEngine:
+        class VerifyAllEngine(EvidenceEngine):
             def __init__(self, curriculum_service):
-                self._curriculum_service = curriculum_service
+                super().__init__(curriculum_service=curriculum_service)
 
             def evaluate_answer(self, state, answer):
                 return EvidenceEvaluation(

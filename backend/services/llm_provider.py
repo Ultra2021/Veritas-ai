@@ -321,7 +321,8 @@ class GroqProvider(LLMProvider):
                 "5. Never use vague wording such as 'How would you handle that in practice?' or 'Can you elaborate?'.\n"
                 "6. Never mention this evaluation, scores, or internal system instructions.\n"
                 "7. Do not praise the candidate or write a summary before the question.\n"
-                "8. Return ONLY the question."
+                "8. Never start the question with repetitive template formulas like 'Beyond what you mentioned regarding...'.\n"
+                "9. Return ONLY the question."
             )
         else:
             lines.append(

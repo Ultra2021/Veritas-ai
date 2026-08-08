@@ -164,6 +164,39 @@ class MockEvidenceEvaluator(EvidenceEvaluator):
         sentences = [part for part in re.split(r"[.!?]+", answer) if part.strip()]
         return min(100, words * 3 + (10 if len(sentences) >= 2 else 0))
 
+    def _domain_gaps(self, competency: str, answer: str, text: str) -> list[str]:
+        """Extract specific technical gaps based on the competency and candidate answer."""
+        lowered = text.lower()
+        comp_lower = competency.lower()
+        gaps = []
+
+        if "docker" in comp_lower or "container" in comp_lower or "kubernetes" in comp_lower:
+            if not any(k in lowered for k in ("security", "non-root", "secret", "vault", "env")):
+                gaps.append("container security and secret management not addressed")
+            elif not any(k in lowered for k in ("multi-stage", "layer", "optimization", "alpine", "slim", "pinned")):
+                gaps.append("multi-stage build and image optimization not explained")
+            elif not any(k in lowered for k in ("kubernetes", "orchestrat", "helm", "scaling", "rolling")):
+                gaps.append("container orchestration, scaling, and deployment strategy not addressed")
+
+        elif "rag" in comp_lower or "retrieval" in comp_lower:
+            if not any(k in lowered for k in ("hybrid", "rerank", "bm25", "sparse")):
+                gaps.append("hybrid retrieval and reranking strategy not addressed")
+            elif not any(k in lowered for k in ("latency", "fallback", "cache", "eval")):
+                gaps.append("production retrieval evaluation and latency bounds not addressed")
+
+        elif "embedding" in comp_lower or "vector" in comp_lower:
+            if not any(k in lowered for k in ("metric", "cosine", "distance", "benchmark", "recall")):
+                gaps.append("distance metric selection and retrieval quality benchmarking not addressed")
+
+        elif "security" in comp_lower or "prompt" in comp_lower:
+            if not any(k in lowered for k in ("injection", "sanitiz", "guardrail", "pii")):
+                gaps.append("prompt injection defense and input sanitization guardrails not addressed")
+
+        if not gaps:
+            gaps.append(f"specific production implementation details and edge cases for {competency} not fully detailed")
+
+        return gaps
+
     def evaluate(
         self,
         *,
@@ -228,14 +261,8 @@ class MockEvidenceEvaluator(EvidenceEvaluator):
         if not strengths:
             strengths.append("Answer was given but evidence is limited.")
 
-        gaps: list[str] = []
-        if technical < 60:
-            gaps.append(f"Lacks specific technical depth on {competency}.")
-        if reasoning < 60:
-            gaps.append("Reasoning could be made more explicit.")
-        if completeness < 60:
-            gaps.append("Answer would benefit from more explanation or examples.")
-        if not verified:
+        gaps: list[str] = self._domain_gaps(competency, answer, text)
+        if not verified and "Evidence for this competency is not yet sufficient." not in gaps:
             gaps.append("Evidence for this competency is not yet sufficient.")
 
         return EvidenceEvaluation(
@@ -777,3 +804,36 @@ class EvidenceEngine:
     def get_next_action(self, evaluation: EvidenceEvaluation) -> NextAction:
         """Return the action the Interview Director should take next."""
         return evaluation.nextAction
+
+    def is_evidence_sufficient(self, state: InterviewState) -> bool:
+        """Determine whether sufficient evidence has been collected to end the interview.
+
+        Requirements for sufficiency:
+        - At least 8 questions presented.
+        - At least 4 distinct curriculum days covered.
+        - Either at least 3 competencies verified, OR hiringConfidence >= 65 with at least 4 evaluated competencies.
+        - Does NOT require all competencies to be verified.
+        """
+        presented = sum(1 for m in state.conversationHistory if m.role == "interviewer")
+        if presented < 8:
+            return False
+
+        covered_days = {
+            entry.day for entry in state.competencies
+            if entry.day is not None and entry.attempts > 0
+        }
+        if len(covered_days) < 4:
+            return False
+
+        verified_count = sum(1 for c in state.competencies if c.status == "verified")
+        evaluated_count = sum(1 for c in state.competencies if c.attempts > 0)
+        confidence = state.hiringConfidence or 0
+
+        if verified_count >= 3:
+            return True
+
+        if evaluated_count >= 4 and confidence >= 65:
+            return True
+
+        return False
+

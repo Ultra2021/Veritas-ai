@@ -184,12 +184,28 @@ class InterviewService:
                 f"Evidence Engine returned unknown next action {action!r}."
             )
 
+        presented = self._questions_presented(state)
+
+        # Check adaptive completion rules:
+        # 1. Hard stop at 20 questions
+        # 2. Complete at >= 8 questions if evidence is sufficient
+        if presented >= MAX_QUESTIONS_TO_COMPLETE:
+            self._session_service.mark_completed(session_id)
+            self._session_service.update_session(state)
+            return self._build_response(state, evidence=evaluation)
+
+        if (
+            presented >= MIN_QUESTIONS_TO_COMPLETE
+            and not evaluation.followUpRequired
+            and self._evidence_engine.is_evidence_sufficient(state)
+        ):
+            self._session_service.mark_completed(session_id)
+            self._session_service.update_session(state)
+            return self._build_response(state, evidence=evaluation)
+
         if action == "FOLLOW_UP":
             entry = self._current_competency_state(state)
-            presented = self._questions_presented(state)
             if entry is not None and entry.attempts > MAX_FOLLOWUPS_PER_COMPETENCY:
-                action = "NEXT_COMPETENCY"
-            elif presented >= MAX_QUESTIONS_TO_COMPLETE:
                 action = "NEXT_COMPETENCY"
             else:
                 try:
@@ -199,8 +215,14 @@ class InterviewService:
                 else:
                     state.metadata.totalFollowUps += 1
 
+        if action == "VERIFY":
+            entry = self._current_competency_state(state)
+            if entry is not None and entry.attempts > MAX_FOLLOWUPS_PER_COMPETENCY:
+                action = "NEXT_COMPETENCY"
+            else:
+                self._director.generate_next_question(state)
+
         if action == "NEXT_COMPETENCY":
-            presented = self._questions_presented(state)
             covered_days = len(self._director.covered_curriculum_days(state))
             at_minimum = (
                 presented >= MIN_QUESTIONS_TO_COMPLETE
@@ -208,9 +230,7 @@ class InterviewService:
             )
             next_comp = self._director.select_next_competency(state)
 
-            if presented >= MAX_QUESTIONS_TO_COMPLETE:
-                self._session_service.mark_completed(session_id)
-            elif at_minimum and next_comp is None:
+            if at_minimum and (next_comp is None or self._evidence_engine.is_evidence_sufficient(state)):
                 self._session_service.mark_completed(session_id)
             elif next_comp is None:
                 raise InsufficientQuestionError(
