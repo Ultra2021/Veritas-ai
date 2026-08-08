@@ -16,7 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 import services.candidate_service as candidate_service
-from agents.evidence_engine import EvidenceEngine
+from agents.evidence_engine import EvidenceEngine, GeminiEvidenceEvaluator
 from agents.interview_director import InterviewDirector
 from agents.question_bank import GeminiQuestionBank
 from config import GEMINI_API_KEY
@@ -41,7 +41,14 @@ def _build_service(session_service: SessionService) -> InterviewService:
         curriculum_service,
         question_bank=question_bank,
     )
-    evidence_engine = EvidenceEngine(curriculum_service=curriculum_service)
+    evidence_engine = EvidenceEngine(
+        curriculum_service=curriculum_service,
+        evaluator=(
+            GeminiEvidenceEvaluator(api_key=GEMINI_API_KEY)
+            if GEMINI_API_KEY
+            else None
+        ),
+    )
     return InterviewService(
         candidate_service=candidate_service,
         curriculum_service=curriculum_service,
