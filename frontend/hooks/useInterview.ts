@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { startInterview, submitAnswer as apiSubmitAnswer, getInterviewState } from '../services/api';
 import {
   CandidateInfo,
@@ -28,74 +28,19 @@ export function useInterview() {
   const [error, setError] = useState<string | null>(null);
   const [currentResponse, setCurrentResponse] = useState<InterviewTurnResponse | null>(null);
 
-  // Hydrate candidate data and interview session from localStorage if available
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCandidate = localStorage.getItem('veritas_candidate');
-      if (savedCandidate) {
-        try {
-          const parsed = JSON.parse(savedCandidate);
-          setCandidate({
-            ...DEFAULT_CANDIDATE,
-            ...parsed,
-          });
-        } catch (e) {
-          console.error('Failed to parse candidate from localStorage:', e);
-        }
-      }
-
-      const savedSessionId = localStorage.getItem('veritas_session_id');
-      if (savedSessionId) {
-        setSessionId(savedSessionId);
-      }
-
-      let parsedResponse: InterviewTurnResponse | null = null;
-      const savedResponse = localStorage.getItem('veritas_current_response');
-      if (savedResponse) {
-        try {
-          parsedResponse = JSON.parse(savedResponse);
-          setCurrentResponse(parsedResponse);
-        } catch (e) {
-          console.error('Failed to parse currentResponse from localStorage:', e);
-        }
-      }
-
-      const savedMessages = localStorage.getItem('veritas_messages');
-      if (savedMessages) {
-        try {
-          const parsed = JSON.parse(savedMessages);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setMessages(parsed);
-          }
-        } catch (e) {
-          console.error('Failed to parse messages from localStorage:', e);
-        }
-      } else if (parsedResponse && parsedResponse.question) {
-        // Fallback reconstruction if savedMessages wasn't stored yet
-        setMessages([
-          {
-            id: `msg-hydrated`,
-            sender: 'ai',
-            text: parsedResponse.question,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            skillTag: parsedResponse.currentCompetency || undefined,
-          },
-        ]);
-      }
-    }
-  }, []);
+  const isStartingRef = useRef<boolean>(false);
+  const isInitializedRef = useRef<boolean>(false);
 
   // Initialize or start session for candidate
   const startSession = useCallback(async (candidateIdToUse?: string) => {
-    const targetCandidateId = candidateIdToUse || candidate.candidateId || 'CAND-001';
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
     setIsStarting(true);
     setIsLoading(true);
     setError(null);
     try {
+      const targetCandidateId = candidateIdToUse || candidate.candidateId || 'CAND-001';
       const turn = await startInterview(targetCandidateId);
-      console.log("[START RESPONSE]", turn);
-      console.log("[START QUESTION]", turn?.question);
-      console.log("[START COMPETENCY]", turn?.currentCompetency);
 
       setSessionId(turn.sessionId);
       setCurrentResponse(turn);
@@ -116,27 +61,78 @@ export function useInterview() {
       }
     } catch (err: any) {
       console.error('Failed to start interview session:', err);
-      const msg = err.response?.data?.detail || err.message || 'Unable to connect to backend server at http://localhost:8000';
+      const msg = err.response?.data?.detail || err.message || 'Unable to connect to backend server';
       setError(msg);
     } finally {
+      isStartingRef.current = false;
       setIsStarting(false);
       setIsLoading(false);
     }
   }, [candidate.candidateId]);
 
-  // Automatically start interview if no active session and no stored session exists
+  // Hydrate candidate data & start interview session ONCE on mount
   useEffect(() => {
-    if (!sessionId && !isStarting && !currentResponse) {
-      if (typeof window !== 'undefined') {
-        const storedResponse = localStorage.getItem('veritas_current_response');
-        const storedSession = localStorage.getItem('veritas_session_id');
-        if (storedResponse || storedSession) {
-          return;
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
+    if (typeof window !== 'undefined') {
+      const savedCandidate = localStorage.getItem('veritas_candidate');
+      if (savedCandidate) {
+        try {
+          const parsed = JSON.parse(savedCandidate);
+          setCandidate({
+            ...DEFAULT_CANDIDATE,
+            ...parsed,
+          });
+        } catch (e) {
+          console.error('Failed to parse candidate from localStorage:', e);
         }
       }
-      startSession();
+
+      const savedSessionId = localStorage.getItem('veritas_session_id');
+      const savedResponse = localStorage.getItem('veritas_current_response');
+      const savedMessages = localStorage.getItem('veritas_messages');
+
+      let parsedResponse: InterviewTurnResponse | null = null;
+      if (savedResponse) {
+        try {
+          parsedResponse = JSON.parse(savedResponse);
+          setCurrentResponse(parsedResponse);
+        } catch (e) {
+          console.error('Failed to parse currentResponse from localStorage:', e);
+        }
+      }
+
+      if (savedSessionId) {
+        setSessionId(savedSessionId);
+      }
+
+      if (savedMessages) {
+        try {
+          const parsed = JSON.parse(savedMessages);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMessages(parsed);
+          }
+        } catch (e) {
+          console.error('Failed to parse messages from localStorage:', e);
+        }
+      } else if (parsedResponse && parsedResponse.question) {
+        setMessages([
+          {
+            id: `msg-hydrated`,
+            sender: 'ai',
+            text: parsedResponse.question,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            skillTag: parsedResponse.currentCompetency || undefined,
+          },
+        ]);
+      }
+
+      if (!savedSessionId && !savedResponse) {
+        startSession();
+      }
     }
-  }, [sessionId, isStarting, currentResponse, startSession]);
+  }, [startSession]);
 
   const updateCandidateInfo = (info: CandidateInfo) => {
     setCandidate(info);
@@ -215,6 +211,7 @@ export function useInterview() {
     setCurrentResponse(null);
     setMessages([]);
     setError(null);
+    isStartingRef.current = false;
     startSession(candidate.candidateId);
   };
 
