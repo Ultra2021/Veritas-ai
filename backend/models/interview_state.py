@@ -12,6 +12,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from models.evidence import EvidenceEvaluation
+
 ConversationRole = Literal["system", "interviewer", "candidate", "evaluator"]
 CompetencyStatus = Literal["pending", "in_progress", "verified", "needs_followup"]
 InterviewStage = Literal["initialized", "interviewing", "evaluating", "completed"]
@@ -92,6 +94,7 @@ class InterviewState(BaseModel):
     currentAnswer: str | None = None
     conversationHistory: list[ConversationMessage] = Field(default_factory=list)
     competencies: list[CompetencyState] = Field(default_factory=list)
+    evidenceEvaluations: list[EvidenceEvaluation] = Field(default_factory=list)
     hiringConfidence: int | None = Field(default=None, ge=0, le=100)
     interviewDNA: InterviewDNA = Field(default_factory=InterviewDNA)
     interviewStage: InterviewStage = "initialized"
