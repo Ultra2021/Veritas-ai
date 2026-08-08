@@ -15,9 +15,12 @@ from agents.evidence_engine import EvidenceEngine, _STOPWORDS
 from agents.interview_director import (
     InterviewDirector,
     MAX_FOLLOWUPS_PER_COMPETENCY,
+    MAX_QUESTIONS_TO_COMPLETE,
     MIN_DISTINCT_CURRICULUM_DAYS,
+    MIN_QUESTIONS_TO_COMPLETE,
 )
 from agents.question_bank import LLMQuestionBank, StaticQuestionBank
+from models.evidence import EvidenceEvaluation
 from models.interview_state import (
     CompetencyState,
     ConversationMessage,
@@ -29,10 +32,9 @@ from services.interview_service import (
     InsufficientQuestionError,
     InterviewCompletedError,
     InterviewService,
-    MIN_QUESTIONS_TO_COMPLETE,
     MissingCurrentQuestionError,
 )
-from services.session_service import SessionService, SessionNotFoundError
+from services.session_service import SessionNotFoundError, SessionService
 
 CANDIDATE_ID = "CAND-001"
 
@@ -582,10 +584,8 @@ class TestMinimumQuestionGate:
 
         assert resp.done is True
         assert sessions.get_session(resp.sessionId).completed is True
-        assert service._questions_presented(state) >= MIN_QUESTIONS_TO_COMPLETE
-        # The interview concludes at the first natural boundary once the
-        # minimums are met: four competencies, three questions each.
-        assert turns == 4 * (MAX_FOLLOWUPS_PER_COMPETENCY + 1)
+        assert service._questions_presented(state) == MAX_QUESTIONS_TO_COMPLETE
+        assert turns == MAX_QUESTIONS_TO_COMPLETE
 
 
 class TestCurriculumDayCoverage:
@@ -1013,6 +1013,7 @@ class TestNaturalCompletionBoundary:
         service, curriculum, sessions = _build_service()
         resp = self._start(service)
         state = sessions.get_session(resp.sessionId)
+        _trim_competencies(state, 8)
 
         for _ in range(8):
             resp = service.process_answer(resp.sessionId, _strong_answer(state, curriculum))
@@ -1028,6 +1029,7 @@ class TestNaturalCompletionBoundary:
         service, curriculum, sessions = _build_service()
         resp = self._start(service)
         state = sessions.get_session(resp.sessionId)
+        _trim_competencies(state, 8)
 
         for _ in range(7):
             resp = service.process_answer(resp.sessionId, _strong_answer(state, curriculum))
@@ -1048,6 +1050,7 @@ class TestNaturalCompletionBoundary:
         service, curriculum, sessions = _build_service()
         resp = self._start(service)
         state = sessions.get_session(resp.sessionId)
+        _trim_competencies(state, 8)
 
         for _ in range(7):
             resp = service.process_answer(resp.sessionId, _strong_answer(state, curriculum))
@@ -1083,19 +1086,17 @@ class TestNaturalCompletionBoundary:
         resp = self._start(service)
         state = sessions.get_session(resp.sessionId)
         _trim_competencies(state, 3)
-        # Collapse two competencies onto the same day so only two distinct
-        # days exist even though the question minimum is met.
-        state.competencies[2].day = state.competencies[0].day
-        session_id = resp.sessionId
+        for entry in state.competencies:
+            entry.day = 1
 
         with pytest.raises(InsufficientQuestionError):
             for _ in range(12):
-                service.process_answer(session_id, "I don't know.")
+                service.process_answer(resp.sessionId, "I don't know.")
 
-        final = sessions.get_session(session_id)
+        final = sessions.get_session(resp.sessionId)
         assert final.completed is False
         assert service._questions_presented(final) == 9
-        assert len(service._director.covered_curriculum_days(final)) == 2
+        assert len(service._director.covered_curriculum_days(final)) == 1
 
     def test_existing_followup_cap_still_passes(self):
         service, _, sessions = _build_service()
@@ -1153,3 +1154,135 @@ class TestNaturalCompletionBoundary:
         assert final.completed is False
         assert service._questions_presented(final) == 6
         assert len(service._director.covered_curriculum_days(final)) == 2
+
+
+class TestOptionCAdaptiveInterviewLength:
+    """Option C — Adaptive Evidence-Driven Interview Length tests."""
+
+    def _start(self, service: InterviewService):
+        return service.start_interview(CANDIDATE_ID)
+
+    def test_interview_continues_after_minimums_when_unassessed_competencies_remain(self):
+        """Verify interview does not complete at 12 questions if remaining competencies need assessment."""
+        service, _, sessions = _build_service()
+        resp = self._start(service)
+        state = sessions.get_session(resp.sessionId)
+        _trim_competencies(state, 6)
+        session_id = resp.sessionId
+
+        # 11 answers after start = 12 questions presented
+        for _ in range(11):
+            resp = service.process_answer(session_id, "I don't know.")
+
+        # At 12 questions, minimums are met but competencies 5 and 6 remain unassessed
+        final = sessions.get_session(session_id)
+        assert resp.done is False
+        assert final.completed is False
+        assert service._questions_presented(final) == 12
+
+    def test_interview_completes_when_all_competencies_are_assessed(self):
+        """Verify interview completes at natural boundary when all candidate competencies are assessed."""
+        service, _, sessions = _build_service()
+        resp = self._start(service)
+        state = sessions.get_session(resp.sessionId)
+        _trim_competencies(state, 4)
+        session_id = resp.sessionId
+
+        resp = None
+        for _ in range(12):
+            resp = service.process_answer(session_id, "I don't know.")
+
+        # 4 competencies x 3 questions = 12 questions. All 4 competencies are exhausted.
+        final = sessions.get_session(session_id)
+        assert resp.done is True
+        assert final.completed is True
+        assert service._questions_presented(final) == 12
+
+    def test_hard_ceiling_stops_interview_at_twenty_questions(self):
+        """Verify interview stops at hard maximum of 20 questions presented."""
+        service, _, sessions = _build_service()
+        resp = self._start(service)
+        state = sessions.get_session(resp.sessionId)
+        session_id = resp.sessionId
+
+        resp = None
+        for _ in range(20):
+            if resp and resp.done:
+                break
+            resp = service.process_answer(session_id, "I don't know.")
+
+        final = sessions.get_session(session_id)
+        assert resp.done is True
+        assert final.completed is True
+        assert service._questions_presented(final) == MAX_QUESTIONS_TO_COMPLETE
+
+    def test_strong_answers_produce_shorter_interview(self):
+        """Verify a candidate with quick verified evidence completes as soon as competencies are verified."""
+        class VerifyAllEngine:
+            def __init__(self, curriculum_service):
+                self._curriculum_service = curriculum_service
+
+            def evaluate_answer(self, state, answer):
+                return EvidenceEvaluation(
+                    competency=state.currentCompetency or "technicalKnowledge",
+                    evidenceScore=95,
+                    technicalScore=95,
+                    reasoningScore=95,
+                    completenessScore=95,
+                    communicationScore=95,
+                    verified=True,
+                    followUpRequired=False,
+                    nextAction="VERIFY",
+                    strengths=["complete mastery"],
+                )
+
+            def get_next_action(self, evaluation):
+                return "NEXT_COMPETENCY"
+
+            def update_competency(self, state, evaluation):
+                for comp in state.competencies:
+                    if comp.competency == evaluation.competency:
+                        comp.status = "verified"
+                        comp.evidenceScore = 95
+                        comp.attempts += 1
+
+            def update_interview_dna(self, state, evaluation):
+                pass
+
+            def calculate_hiring_confidence(self, state):
+                pass
+
+        service, curriculum_service, sessions = _build_service()
+        service._evidence_engine = VerifyAllEngine(curriculum_service)
+
+        resp = service.start_interview(CANDIDATE_ID)
+        state = sessions.get_session(resp.sessionId)
+        _trim_competencies(state, 8)
+        session_id = resp.sessionId
+
+        # 4 competencies verified on 1st question each = 4 questions < 8 minimum.
+        # But minimum gate requires 8 questions / 4 days.
+        # So after 4 verified, service asks remaining questions up to 8.
+        # Once minimum 8 is reached, all are verified -> completes cleanly.
+        resp = None
+        for _ in range(8):
+            if resp and resp.done:
+                break
+            resp = service.process_answer(session_id, "I demonstrate full mastery.")
+
+        final = sessions.get_session(session_id)
+        assert resp.done is True
+        assert final.completed is True
+        assert service._questions_presented(final) == 8
+
+    def test_questions_presented_counts_only_actual_interviewer_questions(self):
+        """Verify _questions_presented counts only interviewer messages in conversationHistory."""
+        service, _, sessions = _build_service()
+        resp = self._start(service)
+        state = sessions.get_session(resp.sessionId)
+
+        # Append fake system and candidate messages
+        state.conversationHistory.append(ConversationMessage(role="candidate", message="Hello"))
+        state.conversationHistory.append(ConversationMessage(role="system", message="System note"))
+
+        assert service._questions_presented(state) == 1

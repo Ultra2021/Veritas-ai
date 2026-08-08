@@ -22,6 +22,9 @@ export default function CandidateSelectionPage() {
     e.preventDefault();
     if (typeof window !== 'undefined') {
       localStorage.setItem('veritas_candidate', JSON.stringify(form));
+      localStorage.removeItem('veritas_session_id');
+      localStorage.removeItem('veritas_current_response');
+      localStorage.removeItem('veritas_messages');
     }
     router.push('/interview');
   };

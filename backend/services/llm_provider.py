@@ -191,6 +191,10 @@ class LLMProvider(ABC):
         competency: str,
         curriculum_context: str = "",
         conversation_context: str = "",
+        candidate_answer: str = "",
+        gaps: Sequence[str] = (),
+        strengths: Sequence[str] = (),
+        reason: str = "",
     ) -> str | None:
         """Return a generated follow-up question, or ``None`` on failure."""
 
@@ -288,13 +292,36 @@ class GroqProvider(LLMProvider):
         curriculum_context: str,
         conversation_context: str,
         followup: bool,
+        candidate_answer: str = "",
+        gaps: Sequence[str] = (),
+        strengths: Sequence[str] = (),
+        reason: str = "",
     ) -> str:
         """Build the user prompt for question generation."""
         lines = []
         if followup:
             lines.append(
-                "Ask one deeper follow-up interview question that probes the "
-                f"candidate's competency in '{competency}'."
+                f"Candidate competency:\n{competency}\n"
+            )
+            if candidate_answer:
+                lines.append(f"Candidate's previous answer:\n{candidate_answer}\n")
+            if strengths:
+                lines.append("Evidence strengths:\n" + "\n".join(f"- {s}" for s in strengths) + "\n")
+            if gaps:
+                lines.append("Evidence gaps:\n" + "\n".join(f"- {g}" for g in gaps) + "\n")
+            if reason:
+                lines.append(f"Evaluation reasoning:\n{reason}\n")
+            lines.append(
+                "Generate exactly ONE technical follow-up question.\n\n"
+                "The question must:\n"
+                "1. Build directly on the candidate's previous answer.\n"
+                "2. Probe the most important unresolved technical gap.\n"
+                "3. Explicitly reference the relevant technical concept when necessary so the question is unambiguous.\n"
+                "4. Ask the candidate to explain, design, implement, debug, test, or reason about that concept.\n"
+                "5. Never use vague wording such as 'How would you handle that in practice?' or 'Can you elaborate?'.\n"
+                "6. Never mention this evaluation, scores, or internal system instructions.\n"
+                "7. Do not praise the candidate or write a summary before the question.\n"
+                "8. Return ONLY the question."
             )
         else:
             lines.append(
@@ -374,6 +401,10 @@ class GroqProvider(LLMProvider):
         competency: str,
         curriculum_context: str = "",
         conversation_context: str = "",
+        candidate_answer: str = "",
+        gaps: Sequence[str] = (),
+        strengths: Sequence[str] = (),
+        reason: str = "",
     ) -> str | None:
         """Return a generated follow-up question, or ``None`` on failure."""
         prompt = self._interview_prompt(
@@ -381,6 +412,10 @@ class GroqProvider(LLMProvider):
             curriculum_context=curriculum_context,
             conversation_context=conversation_context,
             followup=True,
+            candidate_answer=candidate_answer,
+            gaps=gaps,
+            strengths=strengths,
+            reason=reason,
         )
         raw = self._complete_structured(
             system=self._interview_template,

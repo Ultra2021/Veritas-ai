@@ -28,13 +28,13 @@ export function useInterview() {
   const [error, setError] = useState<string | null>(null);
   const [currentResponse, setCurrentResponse] = useState<InterviewTurnResponse | null>(null);
 
-  // Hydrate candidate data from localStorage if available
+  // Hydrate candidate data and interview session from localStorage if available
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('veritas_candidate');
-      if (saved) {
+      const savedCandidate = localStorage.getItem('veritas_candidate');
+      if (savedCandidate) {
         try {
-          const parsed = JSON.parse(saved);
+          const parsed = JSON.parse(savedCandidate);
           setCandidate({
             ...DEFAULT_CANDIDATE,
             ...parsed,
@@ -42,6 +42,45 @@ export function useInterview() {
         } catch (e) {
           console.error('Failed to parse candidate from localStorage:', e);
         }
+      }
+
+      const savedSessionId = localStorage.getItem('veritas_session_id');
+      if (savedSessionId) {
+        setSessionId(savedSessionId);
+      }
+
+      let parsedResponse: InterviewTurnResponse | null = null;
+      const savedResponse = localStorage.getItem('veritas_current_response');
+      if (savedResponse) {
+        try {
+          parsedResponse = JSON.parse(savedResponse);
+          setCurrentResponse(parsedResponse);
+        } catch (e) {
+          console.error('Failed to parse currentResponse from localStorage:', e);
+        }
+      }
+
+      const savedMessages = localStorage.getItem('veritas_messages');
+      if (savedMessages) {
+        try {
+          const parsed = JSON.parse(savedMessages);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMessages(parsed);
+          }
+        } catch (e) {
+          console.error('Failed to parse messages from localStorage:', e);
+        }
+      } else if (parsedResponse && parsedResponse.question) {
+        // Fallback reconstruction if savedMessages wasn't stored yet
+        setMessages([
+          {
+            id: `msg-hydrated`,
+            sender: 'ai',
+            text: parsedResponse.question,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            skillTag: parsedResponse.currentCompetency || undefined,
+          },
+        ]);
       }
     }
   }, []);
@@ -54,6 +93,10 @@ export function useInterview() {
     setError(null);
     try {
       const turn = await startInterview(targetCandidateId);
+      console.log("[START RESPONSE]", turn);
+      console.log("[START QUESTION]", turn?.question);
+      console.log("[START COMPETENCY]", turn?.currentCompetency);
+
       setSessionId(turn.sessionId);
       setCurrentResponse(turn);
 
@@ -65,6 +108,12 @@ export function useInterview() {
         skillTag: turn.currentCompetency || undefined,
       };
       setMessages([firstQuestionMsg]);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('veritas_session_id', turn.sessionId);
+        localStorage.setItem('veritas_current_response', JSON.stringify(turn));
+        localStorage.setItem('veritas_messages', JSON.stringify([firstQuestionMsg]));
+      }
     } catch (err: any) {
       console.error('Failed to start interview session:', err);
       const msg = err.response?.data?.detail || err.message || 'Unable to connect to backend server at http://localhost:8000';
@@ -75,9 +124,16 @@ export function useInterview() {
     }
   }, [candidate.candidateId]);
 
-  // Automatically start interview if no active session
+  // Automatically start interview if no active session and no stored session exists
   useEffect(() => {
     if (!sessionId && !isStarting && !currentResponse) {
+      if (typeof window !== 'undefined') {
+        const storedResponse = localStorage.getItem('veritas_current_response');
+        const storedSession = localStorage.getItem('veritas_session_id');
+        if (storedResponse || storedSession) {
+          return;
+        }
+      }
       startSession();
     }
   }, [sessionId, isStarting, currentResponse, startSession]);
@@ -106,7 +162,13 @@ export function useInterview() {
         : 'Response submitted',
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => {
+      const updated = [...prev, userMsg];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('veritas_messages', JSON.stringify(updated));
+      }
+      return updated;
+    });
 
     try {
       const turn = await apiSubmitAnswer(sessionId, answerText);
@@ -121,7 +183,16 @@ export function useInterview() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           skillTag: turn.currentCompetency || undefined,
         };
-        setMessages((prev) => [...prev, aiMsg]);
+        setMessages((prev) => {
+          const updated = [...prev, aiMsg];
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('veritas_messages', JSON.stringify(updated));
+          }
+          return updated;
+        });
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('veritas_current_response', JSON.stringify(turn));
       }
       return turn;
     } catch (err: any) {
@@ -135,6 +206,11 @@ export function useInterview() {
   };
 
   const restartInterview = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('veritas_session_id');
+      localStorage.removeItem('veritas_current_response');
+      localStorage.removeItem('veritas_messages');
+    }
     setSessionId(null);
     setCurrentResponse(null);
     setMessages([]);

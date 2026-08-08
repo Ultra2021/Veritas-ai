@@ -56,6 +56,153 @@ def _call_followup_for(fallback, competency: str, state) -> str:
     return fallback.followup_for(competency)
 
 
+_QUESTION_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "how", "would", "you", "what", "why", "when", "which", "where",
+        "a", "an", "the", "and", "or", "of", "to", "in", "for", "with",
+        "on", "at", "by", "from", "up", "about", "into", "over", "after",
+        "is", "are", "was", "were", "be", "been", "being", "have", "has",
+        "had", "do", "does", "did", "can", "could", "should", "will",
+    }
+)
+
+
+def _normalize_question_text(text: str) -> str:
+    """Normalize question text for comparison by lowercasing, stripping punctuation, and unifying spaces."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"[^\w\s]", " ", text.lower())
+    return " ".join(cleaned.split())
+
+
+def _significant_words(text: str) -> set[str]:
+    """Extract significant lowercase word tokens from question text."""
+    norm = _normalize_question_text(text)
+    return {
+        word for word in norm.split()
+        if len(word) > 2 and word not in _QUESTION_STOPWORDS
+    }
+
+
+def _are_near_duplicates(q1: str, q2: str) -> bool:
+    """Return True if q1 and q2 are exact, normalized, or near-duplicate questions."""
+    if not q1 or not q2:
+        return False
+    if q1 == q2:
+        return True
+    norm1 = _normalize_question_text(q1)
+    norm2 = _normalize_question_text(q2)
+    if norm1 == norm2 or not norm1 or not norm2:
+        return norm1 == norm2
+    if norm1 in norm2 or norm2 in norm1:
+        return True
+    words1 = _significant_words(q1)
+    words2 = _significant_words(q2)
+    if not words1 or not words2:
+        return False
+    overlap = len(words1 & words2)
+    min_len = min(len(words1), len(words2))
+    max_len = max(len(words1), len(words2))
+    if min_len >= 3 and (overlap / min_len >= 0.70) and (overlap / max_len >= 0.50):
+        return True
+    return False
+
+
+_VAGUE_PATTERNS = (
+    "how would you handle that in practice",
+    "how would you address that in practice",
+    "how would you handle that",
+    "can you elaborate",
+    "can you explain more",
+    "tell me more",
+    "what do you mean",
+    "why?",
+    "how would you handle this",
+    "how would you address this",
+    "was not fully addressed",
+)
+
+
+def _is_overly_generic_followup(question: str) -> bool:
+    """Return True if the question is overly generic or contains broken vague templates."""
+    if not question or not question.strip():
+        return True
+    lowered = question.lower().strip()
+    for pattern in _VAGUE_PATTERNS:
+        if pattern in lowered:
+            return True
+    return False
+
+
+def _build_targeted_fallback(competency: str, gap: str, candidate_answer: str | None = None, attempt: int = 1) -> str:
+    """Build a clean, grammatical, and technically specific fallback question for a gap."""
+    attempt_1_starters = [
+        f"Can you explain the core concepts and design principles behind {competency}?",
+        f"What are the fundamental architectural principles of {competency}?",
+        f"How do you structure the core design logic when working with {competency}?",
+        f"Walk me through the primary technical considerations for {competency}.",
+    ]
+    attempt_2_starters = [
+        f"What key trade-offs and operational challenges would you consider when implementing {competency}?",
+        f"How would you test, debug, and monitor performance for {competency} in production?",
+        f"What specific edge cases or failure modes would you prepare for when deploying {competency}?",
+        f"How do you weigh latency, cost, and reliability trade-offs in {competency}?",
+    ]
+
+    if not gap or "no substantive answer" in gap.lower() or "no answer" in gap.lower():
+        starters = attempt_1_starters if attempt == 1 else attempt_2_starters
+        idx = abs(hash(competency) + attempt) % len(starters)
+        return starters[idx]
+
+    gap_clean = gap.strip().rstrip(".")
+    gap_lower = gap_clean.lower()
+
+    # Special case handling for common abstract evaluation gap phrases
+    if "reasoning could be made more explicit" in gap_lower or "reasoning" in gap_lower:
+        if attempt == 1:
+            return f"How would you explain the architectural trade-offs and underlying reasoning behind your approach to {competency}?"
+        else:
+            return f"What specific architectural decisions and technical trade-offs led to your choice in {competency}?"
+
+    if "lacks specific technical depth" in gap_lower or "technical depth" in gap_lower:
+        if attempt == 1:
+            return f"Walk me through the deeper technical implementation and edge cases when working with {competency}."
+        else:
+            return f"What specific failure modes or performance bottlenecks would you prepare for in {competency}?"
+
+    if "explanation or examples" in gap_lower or "more explanation" in gap_lower:
+        if attempt == 1:
+            return f"Could you walk through a concrete production example of how you implemented {competency}?"
+        else:
+            return f"How would you step-by-step implement and verify this solution for {competency}?"
+
+    # Strip generic prefix fragments if present
+    for prefix in ("lacks ", "missing ", "limited discussion of ", "lack of ", "no "):
+        if gap_lower.startswith(prefix):
+            gap_clean = gap_clean[len(prefix):]
+            gap_lower = gap_clean.lower()
+            break
+
+    # Build contextual fallback incorporating candidate answer terms if practical
+    if candidate_answer and len(candidate_answer.split()) >= 3:
+        words = [
+            word.strip(".,!?\"'()")
+            for word in candidate_answer.split()
+            if len(word) > 3 and word.lower() not in _QUESTION_STOPWORDS
+        ]
+        if words:
+            ctx_terms = ", ".join(words[:2])
+            if attempt == 1:
+                return f"Beyond what you mentioned regarding {ctx_terms}, how would you implement {gap_lower} for {competency}?"
+            else:
+                return f"Building on {ctx_terms}, what trade-offs would you weigh when addressing {gap_lower} in {competency}?"
+
+    if attempt == 1:
+        return f"How would you address {gap_lower} when implementing {competency}?"
+    else:
+        return f"What trade-offs and edge cases would you evaluate when implementing {gap_lower} for {competency}?"
+
+
 class QuestionBank(ABC):
     """Strategy interface for sourcing interview questions.
 
@@ -70,7 +217,7 @@ class QuestionBank(ABC):
         competency: str,
         state: InterviewState | None = None,
     ) -> list[str]:
-        """Return the scenario questions available for a competency."""
+        """Return scenario questions for a competency."""
 
     @abstractmethod
     def followup_for(
@@ -78,11 +225,7 @@ class QuestionBank(ABC):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return a deeper follow-up question for a competency.
-
-        Returns an empty string when every available variant has already
-        been asked in ``state`` so callers can exhaust the competency.
-        """
+        """Return a follow-up question for a competency."""
 
     @staticmethod
     def _asked_questions(state: InterviewState | None) -> set[str]:
@@ -94,6 +237,17 @@ class QuestionBank(ABC):
             for message in state.conversationHistory
             if message.role == "interviewer"
         }
+
+    @staticmethod
+    def _is_asked_question(question: str, state: InterviewState | None) -> bool:
+        """Check if a question or a near-duplicate has already been asked in state."""
+        if not question or state is None:
+            return False
+        for message in state.conversationHistory:
+            if message.role == "interviewer" and message.message:
+                if _are_near_duplicates(question, message.message):
+                    return True
+        return False
 
     def followups_for(
         self,
@@ -501,9 +655,9 @@ class StaticQuestionBank(QuestionBank):
     }
 
     _DEFAULT_FOLLOWUPS: tuple[str, ...] = (
-        "Can you expand on that and describe how you would apply it in practice?",
-        "Walk me through a specific example where you applied that in practice.",
-        "What trade-offs would you weigh before applying that approach?",
+        "Walk me through a specific technical example where you applied this in practice.",
+        "What trade-offs did you weigh before selecting this specific technical approach?",
+        "How would you monitor and debug performance issues with this implementation in production?",
     )
 
     def questions_for(
@@ -519,16 +673,44 @@ class StaticQuestionBank(QuestionBank):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return the next unasked follow-up question for a competency.
+        """Return a targeted follow-up question for a competency.
 
-        Returns an empty string when every variant has already been
-        asked so the caller can exhaust the competency.
+        If evidence evaluation context exists in ``state`` with identified gaps,
+        generates a targeted fallback question addressing the gap. Otherwise,
+        rotates through unasked static follow-ups for the competency.
         """
-        asked = self._asked_questions(state)
+        if state is not None:
+            latest_eval = (
+                state.evidenceEvaluations[-1]
+                if state.evidenceEvaluations
+                else None
+            )
+            if latest_eval and latest_eval.gaps:
+                attempts = max(
+                    1,
+                    sum(
+                        1
+                        for ev in state.evidenceEvaluations
+                        if ev.competency == competency
+                    ),
+                )
+                gap_idx = min(max(0, attempts - 1), len(latest_eval.gaps) - 1)
+                gap = latest_eval.gaps[gap_idx]
+                for try_att in range(attempts, attempts + 5):
+                    targeted = _build_targeted_fallback(
+                        competency=competency,
+                        gap=gap,
+                        candidate_answer=state.currentAnswer,
+                        attempt=try_att,
+                    )
+                    if not self._is_asked_question(targeted, state) and not _is_overly_generic_followup(targeted):
+                        return targeted
+
         candidates = self._FOLLOWUPS.get(competency, list(self._DEFAULT_FOLLOWUPS))
         for candidate in candidates:
-            if candidate not in asked:
+            if not self._is_asked_question(candidate, state) and not _is_overly_generic_followup(candidate):
                 return candidate
+
         return ""
 
     def followups_for(
@@ -666,35 +848,63 @@ class GeminiQuestionBank(QuestionBank):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return a generated follow-up question that has not been asked.
+        """Return an answer-aware generated follow-up question.
 
-        A cached LLM result is reused while unique; once it has been
-        asked, a fresh one is generated. Fallback results are returned
-        for the current turn but never cached. Returns an empty string
-        when no unique question is available.
+        Generates fresh follow-up questions for each turn using the candidate's
+        previous answer, evidence gaps, strengths, and reasoning. Does NOT
+        reuse competency-level follow-up caching.
         """
-        asked = self._asked_questions(state)
-        if (
-            competency in self._followup_cache
-            and self._followup_cache[competency] not in asked
-        ):
-            return self._followup_cache[competency]
-        question = ""
-        prompt = (
-            f"Ask one deeper follow-up question about the candidate's "
-            f"competency in '{competency}'. Return ONLY a JSON object with a "
-            f"'question' string."
-        )
-        raw = self._generate(prompt, self._FOLLOWUP_SCHEMA)
-        if raw:
-            try:
-                question = str(self._parse_json(raw).get("question", "")).strip()
-            except (ValueError, TypeError, KeyError):
-                question = ""
-        if question and question not in asked:
-            self._followup_cache[competency] = question
-            return question
-        return self._next_static_followup(competency, state, asked)
+        if self._model is not None:
+            latest_answer = state.currentAnswer if (state and state.currentAnswer) else "No answer provided."
+            latest_eval = (
+                state.evidenceEvaluations[-1]
+                if (state and state.evidenceEvaluations)
+                else None
+            )
+            gaps = (
+                ", ".join(latest_eval.gaps)
+                if (latest_eval and latest_eval.gaps)
+                else "None identified"
+            )
+            strengths = (
+                ", ".join(latest_eval.strengths)
+                if (latest_eval and latest_eval.strengths)
+                else "None identified"
+            )
+            reason = (
+                latest_eval.reason
+                if (latest_eval and latest_eval.reason)
+                else "None provided"
+            )
+
+            prompt = (
+                f"Competency:\n{competency}\n\n"
+                f"Candidate's previous answer:\n{latest_answer}\n\n"
+                f"Evidence gaps:\n{gaps}\n\n"
+                f"Evidence strengths:\n{strengths}\n\n"
+                f"Evaluation reasoning:\n{reason}\n\n"
+                "Instruction:\n"
+                "Generate exactly one concise technical follow-up question.\n"
+                "The question must directly build on the candidate's previous answer and probe one of the identified evidence gaps or areas that remain unverified.\n"
+                "Do not repeat a question already present in the conversation history.\n"
+                "Do not ask a generic question about the competency.\n"
+                "Do not mention the evaluation, score, or internal evidence system to the candidate.\n"
+                "Return ONLY a JSON object with a 'question' string."
+            )
+            raw = self._generate(prompt, self._FOLLOWUP_SCHEMA)
+            if raw:
+                try:
+                    question = str(self._parse_json(raw).get("question", "")).strip()
+                    if (
+                        question
+                        and not self._is_asked_question(question, state)
+                        and not _is_overly_generic_followup(question)
+                    ):
+                        return question
+                except (ValueError, TypeError, KeyError):
+                    pass
+
+        return _call_followup_for(self._fallback, competency, state)
 
     def _next_static_followup(
         self,
@@ -703,13 +913,7 @@ class GeminiQuestionBank(QuestionBank):
         asked: set[str],
     ) -> str:
         """Return the first unasked static follow-up variant, if any."""
-        fallback = _call_followup_for(self._fallback, competency, state)
-        if fallback and fallback not in asked:
-            return fallback
-        for candidate in self._fallback.followups_for(competency, state):
-            if candidate and candidate not in asked:
-                return candidate
-        return ""
+        return _call_followup_for(self._fallback, competency, state)
 
 
 class LLMQuestionBank(QuestionBank):
@@ -810,35 +1014,49 @@ class LLMQuestionBank(QuestionBank):
         competency: str,
         state: InterviewState | None = None,
     ) -> str:
-        """Return a generated follow-up question that has not been asked.
+        """Return an answer-aware generated follow-up question.
 
-        A cached LLM result is reused while unique; once it has been
-        asked, a fresh one is generated. Fallback results are returned
-        for the current turn but never cached. Returns an empty string
-        when no unique question is available.
+        Delegates follow-up generation to the LLM provider with full answer and
+        evidence context. Generates fresh follow-up questions per turn without
+        reusing competency-level caching.
         """
-        asked = self._asked_questions(state)
-        if (
-            competency in self._followup_cache
-            and self._followup_cache[competency] not in asked
-        ):
-            return self._followup_cache[competency]
-        question = ""
         if self._provider is not None:
+            latest_answer = state.currentAnswer if (state and state.currentAnswer) else ""
+            latest_eval = (
+                state.evidenceEvaluations[-1]
+                if (state and state.evidenceEvaluations)
+                else None
+            )
+            gaps = latest_eval.gaps if (latest_eval and latest_eval.gaps) else ()
+            strengths = (
+                latest_eval.strengths if (latest_eval and latest_eval.strengths) else ()
+            )
+            reason = (
+                latest_eval.reason if (latest_eval and latest_eval.reason) else ""
+            )
+
             try:
                 generated = self._provider.followup_for(
                     competency=competency,
                     curriculum_context=self._curriculum_context(competency),
                     conversation_context=self._conversation_context(state),
+                    candidate_answer=latest_answer,
+                    gaps=gaps,
+                    strengths=strengths,
+                    reason=reason,
                 )
+                if generated:
+                    question = str(generated).strip()
+                    if (
+                        question
+                        and not self._is_asked_question(question, state)
+                        and not _is_overly_generic_followup(question)
+                    ):
+                        return question
             except Exception:
-                generated = None
-            if generated:
-                question = str(generated).strip()
-        if question and question not in asked:
-            self._followup_cache[competency] = question
-            return question
-        return self._next_static_followup(competency, state, asked)
+                pass
+
+        return _call_followup_for(self._fallback, competency, state)
 
     def _next_static_followup(
         self,
@@ -847,10 +1065,4 @@ class LLMQuestionBank(QuestionBank):
         asked: set[str],
     ) -> str:
         """Return the first unasked static follow-up variant, if any."""
-        fallback = _call_followup_for(self._fallback, competency, state)
-        if fallback and fallback not in asked:
-            return fallback
-        for candidate in self._fallback.followups_for(competency, state):
-            if candidate and candidate not in asked:
-                return candidate
-        return ""
+        return _call_followup_for(self._fallback, competency, state)

@@ -11,13 +11,14 @@ import { useInterview } from '../../hooks/useInterview';
 import { RotateCcw, ArrowLeft, Sparkles } from 'lucide-react';
 
 export default function ResultsPage() {
-  const { candidate, currentResponse, getSkillDetails, restartInterview } = useInterview();
+  const { candidate, currentResponse, restartInterview } = useInterview();
 
-  const skillsList = getSkillDetails();
-  const confidenceScore = currentResponse?.hiringConfidence ?? 0;
+  const confidenceScore = currentResponse?.hiringConfidence;
 
   const recommendation =
-    confidenceScore >= 85
+    confidenceScore === null || confidenceScore === undefined
+      ? 'COLLECTING EVIDENCE'
+      : confidenceScore >= 85
       ? 'STRONG HIRE'
       : confidenceScore >= 65
       ? 'HIRE'
@@ -33,9 +34,12 @@ export default function ResultsPage() {
   if (currentResponse?.evidence?.strengths && currentResponse.evidence.strengths.length > 0) {
     reasoningPoints.push(...currentResponse.evidence.strengths);
   }
+  if (currentResponse?.evidence?.gaps && currentResponse.evidence.gaps.length > 0) {
+    reasoningPoints.push(...currentResponse.evidence.gaps.map((g) => `Gap identified: ${g}`));
+  }
   if (currentResponse?.competencies) {
     currentResponse.competencies.forEach((c) => {
-      if (c.status === 'verified' && c.notes) {
+      if (c.notes && c.notes.trim()) {
         reasoningPoints.push(`${c.competency}: ${c.notes}`);
       }
     });
@@ -69,7 +73,7 @@ export default function ResultsPage() {
               onClick={restartInterview}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl glass-panel hover:bg-slate-800 text-xs font-semibold text-gray-300 hover:text-white border border-white/10 transition-all"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
+              <RotateCcw className="w-3.5 h-3.5" />
               Assess Another Candidate
             </Link>
           </div>
@@ -79,6 +83,7 @@ export default function ResultsPage() {
         <ResultsCard
           candidateInfo={candidate}
           confidenceScore={confidenceScore}
+          sessionId={currentResponse?.sessionId}
           recommendation={recommendation}
           reasoning={reasoningPoints.length > 0 ? reasoningPoints : undefined}
         />
@@ -89,10 +94,10 @@ export default function ResultsPage() {
           {/* Left Column (7 cols) */}
           <div className="lg:col-span-7 space-y-8">
             {/* Verified Skills Grid */}
-            <VerifiedSkills skills={skillsList} />
+            <VerifiedSkills competencies={currentResponse?.competencies} />
 
-            {/* Growth Map (Placeholder for future Module 10 integration) */}
-            <GrowthMap />
+            {/* Growth Map */}
+            <GrowthMap competencies={currentResponse?.competencies} />
           </div>
 
           {/* Right Column (5 cols) */}
@@ -110,10 +115,6 @@ export default function ResultsPage() {
               <p className="leading-relaxed text-gray-400">
                 All score vectors are generated strictly from transcript timestamps and empirical code answer evaluation. Zero generic resume keywords were factored into this score.
               </p>
-              <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-gray-400">
-                <span>Model Engine: Veritas-3.5-v2</span>
-                <span className="text-emerald-400 font-bold">100% Audit Verified</span>
-              </div>
             </div>
 
           </div>

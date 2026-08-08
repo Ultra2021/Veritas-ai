@@ -32,10 +32,12 @@ from uuid import UUID
 
 from agents.evidence_engine import EvidenceEngine
 from agents.interview_director import (
+    MAX_FOLLOWUPS_PER_COMPETENCY,
+    MAX_QUESTIONS_TO_COMPLETE,
+    MIN_DISTINCT_CURRICULUM_DAYS,
+    MIN_QUESTIONS_TO_COMPLETE,
     FollowUpExhaustedError,
     InterviewDirector,
-    MAX_FOLLOWUPS_PER_COMPETENCY,
-    MIN_DISTINCT_CURRICULUM_DAYS,
 )
 from models.evidence import EvidenceEvaluation
 from models.interview_response import InterviewTurnResponse
@@ -73,8 +75,6 @@ class InsufficientQuestionError(InterviewServiceError):
     it also never loops forever.
     """
 
-
-MIN_QUESTIONS_TO_COMPLETE = 8
 
 _VALID_NEXT_ACTIONS = ("FOLLOW_UP", "NEXT_COMPETENCY", "VERIFY")
 
@@ -186,7 +186,10 @@ class InterviewService:
 
         if action == "FOLLOW_UP":
             entry = self._current_competency_state(state)
+            presented = self._questions_presented(state)
             if entry is not None and entry.attempts > MAX_FOLLOWUPS_PER_COMPETENCY:
+                action = "NEXT_COMPETENCY"
+            elif presented >= MAX_QUESTIONS_TO_COMPLETE:
                 action = "NEXT_COMPETENCY"
             else:
                 try:
@@ -203,16 +206,13 @@ class InterviewService:
                 presented >= MIN_QUESTIONS_TO_COMPLETE
                 and covered_days >= MIN_DISTINCT_CURRICULUM_DAYS
             )
-            if at_minimum:
-                # Natural boundary: the minimum question and curriculum-day
-                # coverage has been reached and the current answer required
-                # no follow-up, so conclude instead of selecting another
-                # competency. No eligible competency is reopened and the
-                # full curriculum is never required.
+            next_comp = self._director.select_next_competency(state)
+
+            if presented >= MAX_QUESTIONS_TO_COMPLETE:
                 self._session_service.mark_completed(session_id)
-            elif self._director.select_next_competency(state) is None:
-                # No eligible competency remains before the minimums are
-                # met: fail deterministically rather than completing early.
+            elif at_minimum and next_comp is None:
+                self._session_service.mark_completed(session_id)
+            elif next_comp is None:
                 raise InsufficientQuestionError(
                     f"Cannot continue: no eligible competency remains after "
                     f"{presented} question(s) across {covered_days} curriculum "

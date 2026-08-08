@@ -2,12 +2,13 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Award, CheckCircle, ShieldCheck, Sparkles, Download, Share2, AlertCircle } from 'lucide-react';
+import { Award, ShieldCheck, Sparkles, Download } from 'lucide-react';
 import { CandidateInfo } from '../types/interview';
 
 interface ResultsCardProps {
   candidateInfo: CandidateInfo;
-  confidenceScore: number;
+  confidenceScore: number | null | undefined;
+  sessionId?: string | null;
   recommendation?: 'STRONG HIRE' | 'HIRE' | 'LEANING HIRE' | 'NO HIRE' | 'COLLECTING EVIDENCE';
   reasoning?: string[];
 }
@@ -15,17 +16,12 @@ interface ResultsCardProps {
 export default function ResultsCard({
   candidateInfo,
   confidenceScore,
-  recommendation = 'STRONG HIRE',
+  sessionId,
+  recommendation = 'COLLECTING EVIDENCE',
   reasoning,
 }: ResultsCardProps) {
-  const defaultReasoning = [
-    'Empirically proven mastery of FastAPI dependency injection and async memory management.',
-    'Clear architectural reasoning when designing Redis caching strategies under high concurrent traffic.',
-    'Strong communication skills with structured problem-solving approach during technical trade-off questions.',
-    'High learning agility demonstrated by quickly integrating Kubernetes auto-scaling concepts.',
-  ];
-
-  const points = reasoning || defaultReasoning;
+  const isConfidenceAvailable = confidenceScore !== null && confidenceScore !== undefined;
+  const points = reasoning && reasoning.length > 0 ? reasoning : [];
 
   return (
     <motion.div
@@ -45,10 +41,10 @@ export default function ResultsCard({
             <ShieldCheck className="w-4 h-4" /> Veritas AI Verification Certified
           </div>
           <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-            {candidateInfo.name || 'Alex Chen'}
+            {candidateInfo.name || 'Candidate'}
           </h1>
           <p className="text-sm text-gray-400 mt-1">
-            Role Target: <strong className="text-cyan-300 font-medium">{candidateInfo.targetRole || 'Senior Backend Engineer'}</strong> • Level: {candidateInfo.experienceLevel || 'Senior'}
+            Role Target: <strong className="text-cyan-300 font-medium">{candidateInfo.targetRole}</strong> • Level: {candidateInfo.experienceLevel}
           </p>
         </div>
 
@@ -65,7 +61,7 @@ export default function ResultsCard({
               {recommendation}
             </div>
             <div className="text-xs text-gray-300 font-mono">
-              Confidence Index: <strong className="text-white">{confidenceScore}%</strong>
+              Confidence Index: <strong className="text-white">{isConfidenceAvailable ? `${confidenceScore}%` : 'Not yet available'}</strong>
             </div>
           </div>
         </div>
@@ -78,25 +74,31 @@ export default function ResultsCard({
           Key Verification Reasoning & Evidence Summary
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {points.map((point, index) => (
-            <div
-              key={index}
-              className="p-3.5 rounded-xl bg-slate-900/60 border border-white/5 flex items-start gap-3 text-xs leading-relaxed text-gray-300"
-            >
-              <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                ✓
+        {points.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {points.map((point, index) => (
+              <div
+                key={index}
+                className="p-3.5 rounded-xl bg-slate-900/60 border border-white/5 flex items-start gap-3 text-xs leading-relaxed text-gray-300"
+              >
+                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                  ✓
+                </div>
+                <span>{point}</span>
               </div>
-              <span>{point}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-white/5 text-xs italic text-gray-400">
+            Detailed evidence will appear as interview evidence is evaluated.
+          </div>
+        )}
       </div>
 
       {/* Actions */}
       <div className="pt-2 flex items-center justify-between border-t border-white/10">
         <span className="text-xs text-gray-400">
-          Verified with empirical evidence log ID: <span className="font-mono text-gray-300">VTS-9842-EX</span>
+          Session ID: <span className="font-mono text-gray-300">{sessionId ? sessionId.slice(0, 8) : 'N/A'}</span>
         </span>
         <div className="flex items-center gap-3">
           <button

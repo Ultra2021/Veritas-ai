@@ -29,6 +29,7 @@ export type CompetencyStatus = 'pending' | 'in_progress' | 'verified' | 'needs_f
 
 export interface CompetencyState {
   competency: string;
+  day?: number;
   status: CompetencyStatus;
   evidenceScore: number;
   attempts: number;

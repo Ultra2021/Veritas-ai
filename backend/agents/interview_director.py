@@ -28,6 +28,8 @@ from services.curriculum_service import CurriculumService
 
 MAX_FOLLOWUPS_PER_COMPETENCY = 2
 MIN_DISTINCT_CURRICULUM_DAYS = 4
+MIN_QUESTIONS_TO_COMPLETE = 8
+MAX_QUESTIONS_TO_COMPLETE = 20
 
 
 class FollowUpExhaustedError(ValueError):
@@ -114,16 +116,15 @@ class InterviewDirector:
         with different questions. Once every bank question has been asked,
         the existing deterministic fallback exhaustion applies.
         """
-        asked = self._asked_questions(state)
         questions = self._question_bank.questions_for(competency, state)
         if questions:
             offset = int(state.sessionId) % len(questions)
             ordered = questions[offset:] + questions[:offset]
             for question in ordered:
-                if question not in asked:
+                if not QuestionBank._is_asked_question(question, state):
                     return question
         for question in self._fallback_questions(competency):
-            if question not in asked:
+            if not QuestionBank._is_asked_question(question, state):
                 return question
         return self._fallback_questions(competency)[0]
 
@@ -205,7 +206,7 @@ class InterviewDirector:
             or (selected.competency if selected else "technicalKnowledge")
         )
         question = self._question_bank.followup_for(competency, state)
-        if not question or question in self._asked_questions(state):
+        if not question or QuestionBank._is_asked_question(question, state):
             raise FollowUpExhaustedError(
                 f"No unique follow-up question available for competency '{competency}'."
             )

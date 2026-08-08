@@ -11,7 +11,7 @@ import {
   Tooltip,
 } from 'recharts';
 import { InterviewDNA as InterviewDNAType } from '../types/interview';
-import { Dna, Sparkles } from 'lucide-react';
+import { Dna } from 'lucide-react';
 
 interface InterviewDNAProps {
   dna: InterviewDNAType | null | undefined;
@@ -19,18 +19,39 @@ interface InterviewDNAProps {
 }
 
 export default function InterviewDNA({ dna, compact = false }: InterviewDNAProps) {
-  const technical = dna?.technicalKnowledge ?? 0;
-  const communication = dna?.communication ?? 0;
-  const problemSolving = dna?.problemSolving ?? 0;
-  const leadership = dna?.leadership ?? 0;
-  const learning = dna?.learningAbility ?? 0;
+  if (!dna) {
+    return (
+      <div className={`glass-card rounded-2xl ${compact ? 'p-3.5' : 'p-6'} border border-white/10 shadow-xl space-y-3`}>
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Dna className="w-4 h-4 text-violet-400" />
+            <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-bold uppercase tracking-wider text-gray-200`}>
+              Interview DNA Matrix
+            </h3>
+          </div>
+          <span className="text-[10px] text-violet-300 font-medium px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30">
+            5-Vector Analysis
+          </span>
+        </div>
+        <div className={`w-full ${compact ? 'h-36' : 'h-48'} flex items-center justify-center text-xs text-gray-400 italic text-center p-4`}>
+          Interview DNA Matrix data not yet available.
+        </div>
+      </div>
+    );
+  }
+
+  const technical = dna.technicalKnowledge ?? 0;
+  const communication = dna.communication ?? 0;
+  const problemSolving = dna.problemSolving ?? 0;
+  const leadership = dna.leadership ?? 0;
+  const learning = dna.learningAbility ?? 0;
 
   const chartData = [
     { axis: 'Technical Knowledge', value: technical, fullMark: 100 },
     { axis: 'Communication', value: communication, fullMark: 100 },
     { axis: 'Problem Solving', value: problemSolving, fullMark: 100 },
     { axis: 'Leadership', value: leadership, fullMark: 100 },
-    { axis: 'Learning Agility', value: learning, fullMark: 100 },
+    { axis: 'Learning Ability', value: learning, fullMark: 100 },
   ];
 
   return (
