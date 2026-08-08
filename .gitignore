@@ -23,5 +23,11 @@ venv.bak/
 *.swo
 .DS_Store
 
+# Frontend Build Artifacts
+node_modules/
+.next/
+dist/
+build/
+
 # Logs
 *.log
