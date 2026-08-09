@@ -2,16 +2,33 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Award, ShieldCheck, Sparkles, Download } from 'lucide-react';
-import { CandidateInfo } from '../types/interview';
+import { Printer } from 'lucide-react';
+import { CandidateInfo } from '@/types/interview';
+import ScoreDial from './ui/ScoreDial';
+import { cn } from '@/lib/utils';
+
+type Recommendation =
+  | 'STRONG HIRE'
+  | 'HIRE'
+  | 'LEANING HIRE'
+  | 'NO HIRE'
+  | 'COLLECTING EVIDENCE';
 
 interface ResultsCardProps {
   candidateInfo: CandidateInfo;
   confidenceScore: number | null | undefined;
   sessionId?: string | null;
-  recommendation?: 'STRONG HIRE' | 'HIRE' | 'LEANING HIRE' | 'NO HIRE' | 'COLLECTING EVIDENCE';
+  recommendation?: Recommendation;
   reasoning?: string[];
 }
+
+const REC: Record<Recommendation, { bg: string; stamp: string }> = {
+  'STRONG HIRE': { bg: 'bg-acid', stamp: 'border-ink text-ink' },
+  HIRE: { bg: 'bg-mint', stamp: 'border-ink text-ink' },
+  'LEANING HIRE': { bg: 'bg-sun', stamp: 'border-ink text-ink' },
+  'NO HIRE': { bg: 'bg-blood', stamp: 'border-paper text-paper' },
+  'COLLECTING EVIDENCE': { bg: 'bg-sand', stamp: 'border-smoke text-smoke' },
+};
 
 export default function ResultsCard({
   candidateInfo,
@@ -20,96 +37,83 @@ export default function ResultsCard({
   recommendation = 'COLLECTING EVIDENCE',
   reasoning,
 }: ResultsCardProps) {
-  const isConfidenceAvailable = confidenceScore !== null && confidenceScore !== undefined;
-  const points = reasoning && reasoning.length > 0 ? reasoning : [];
+  const points = reasoning?.length ? reasoning : [];
+  const style = REC[recommendation] ?? REC['COLLECTING EVIDENCE'];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4 }}
-      className="glass-panel rounded-3xl p-6 lg:p-8 border border-white/10 shadow-2xl relative overflow-hidden space-y-6"
-    >
-      {/* Ambient background glow */}
-      <div className="absolute -top-24 -right-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="border-3 border-ink bg-paper shadow-brutal-xl">
+      {/* header bar */}
+      <div className="flex items-center justify-between border-b-3 border-ink bg-ink px-4 py-2">
+        <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-paper">
+          VERDICT / CASE {sessionId ? sessionId.slice(0, 8).toUpperCase() : 'N-A'}
+        </span>
+        <button
+          onClick={() => typeof window !== 'undefined' && window.print()}
+          className="flex items-center gap-1.5 border-2 border-paper bg-paper px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-ink transition-colors hover:bg-acid"
+        >
+          <Printer className="h-3 w-3" strokeWidth={3} />
+          PRINT
+        </button>
+      </div>
 
-      {/* Header Info */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
-            <ShieldCheck className="w-4 h-4" /> Veritas AI Verification Certified
-          </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-            {candidateInfo.name || 'Candidate'}
+      <div className="grid lg:grid-cols-[1.2fr_1fr]">
+        {/* left: identity + reasoning */}
+        <div className="border-b-3 border-ink p-5 sm:p-7 lg:border-b-0 lg:border-r-3">
+          <span className="label">SUBJECT</span>
+          <h1 className="mt-2 display text-[clamp(2rem,6vw,4rem)] leading-[0.9]">
+            {candidateInfo.name || 'UNKNOWN'}
           </h1>
-          <p className="text-sm text-gray-400 mt-1">
-            Role Target: <strong className="text-cyan-300 font-medium">{candidateInfo.targetRole}</strong> • Level: {candidateInfo.experienceLevel}
+          <p className="mt-2 font-mono text-xs font-bold uppercase text-smoke">
+            {candidateInfo.targetRole} · {candidateInfo.experienceLevel}
           </p>
+          <p className="font-mono text-xs font-bold uppercase text-smoke">
+            LENS: {candidateInfo.companyMode}
+          </p>
+
+          <div className="mt-6">
+            <span className="label bg-cobalt">FINDINGS</span>
+            {points.length > 0 ? (
+              <ul className="mt-3 space-y-2">
+                {points.map((p, i) => (
+                  <motion.li
+                    key={i}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="flex gap-2 border-l-3 border-ink pl-3 text-xs font-medium leading-relaxed"
+                  >
+                    <span className="font-display">›</span>
+                    {p}
+                  </motion.li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 font-mono text-xs font-bold uppercase text-smoke">
+                No findings recorded yet
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Big Hiring Recommendation Badge */}
-        <div className="flex items-center gap-4 bg-slate-900/80 border border-emerald-500/30 p-4 rounded-2xl shadow-xl">
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 shrink-0">
-            <Award className="w-7 h-7" />
-          </div>
-          <div>
-            <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">
-              Recommendation
-            </div>
-            <div className="text-xl font-black text-emerald-400 tracking-tight">
+        {/* right: stamp + dial */}
+        <div className={cn('relative flex flex-col justify-center p-5 sm:p-7', style.bg)}>
+          <motion.div
+            initial={{ scale: 1.5, opacity: 0, rotate: -22 }}
+            animate={{ scale: 1, opacity: 1, rotate: -8 }}
+            transition={{ delay: 0.2, ease: [0.34, 1.56, 0.64, 1], duration: 0.5 }}
+            className={cn(
+              'mx-auto mb-6 border-6 px-5 py-3 text-center',
+              style.stamp
+            )}
+          >
+            <div className="font-display text-[clamp(1.5rem,4vw,2.75rem)] leading-none">
               {recommendation}
             </div>
-            <div className="text-xs text-gray-300 font-mono">
-              Confidence Index: <strong className="text-white">{isConfidenceAvailable ? `${confidenceScore}%` : 'Not yet available'}</strong>
-            </div>
-          </div>
+          </motion.div>
+
+          <ScoreDial value={confidenceScore} label="Confidence" size="sm" />
         </div>
       </div>
-
-      {/* Reasoning Bullet Points */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-indigo-400" />
-          Key Verification Reasoning & Evidence Summary
-        </h3>
-
-        {points.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {points.map((point, index) => (
-              <div
-                key={index}
-                className="p-3.5 rounded-xl bg-slate-900/60 border border-white/5 flex items-start gap-3 text-xs leading-relaxed text-gray-300"
-              >
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                  ✓
-                </div>
-                <span>{point}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-white/5 text-xs italic text-gray-400">
-            Detailed evidence will appear as interview evidence is evaluated.
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="pt-2 flex items-center justify-between border-t border-white/10">
-        <span className="text-xs text-gray-400">
-          Session ID: <span className="font-mono text-gray-300">{sessionId ? sessionId.slice(0, 8) : 'N/A'}</span>
-        </span>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => alert("Report PDF export generated successfully!")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 border border-indigo-400/30 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Download Verification Report
-          </button>
-        </div>
-      </div>
-    </motion.div>
+    </div>
   );
 }

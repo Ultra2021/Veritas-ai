@@ -2,105 +2,63 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, AlertTriangle, HelpCircle, ShieldCheck, FileCode, Clock } from 'lucide-react';
-import { CompetencyState, SkillDetail } from '../types/interview';
+import { CompetencyState, SkillDetail } from '@/types/interview';
+import { cn } from '@/lib/utils';
 
 interface VerifiedSkillsProps {
   competencies?: CompetencyState[];
   skills?: SkillDetail[];
 }
 
+const META: Record<
+  CompetencyState['status'],
+  { tag: string; bg: string; bar: string }
+> = {
+  verified: { tag: 'PROVEN', bg: 'bg-mint', bar: 'bg-mint' },
+  needs_followup: { tag: 'SHAKY', bg: 'bg-sun', bar: 'bg-sun' },
+  in_progress: { tag: 'DIGGING', bg: 'bg-cobalt text-paper', bar: 'bg-cobalt' },
+  pending: { tag: 'UNTOUCHED', bg: 'bg-sand', bar: 'bg-sand' },
+};
+
+function Head({ n, total }: { n: number; total: number }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-2">
+      <h3 className="display text-3xl sm:text-4xl">THE LEDGER</h3>
+      <span className="border-3 border-ink bg-ink px-3 py-1 font-mono text-xs font-bold text-paper">
+        {n}/{total} PROVEN
+      </span>
+    </div>
+  );
+}
+
 export default function VerifiedSkills({ competencies, skills }: VerifiedSkillsProps) {
-  // If competencies are provided, use them directly; otherwise fall back to skills prop if available
   const list = competencies || [];
-  const verifiedCount = list.filter((c) => c.status === 'verified').length;
-  const totalCount = list.length;
+  const proven = list.filter((c) => c.status === 'verified').length;
 
-  const getStatusBadge = (status: CompetencyState['status']) => {
-    switch (status) {
-      case 'verified':
-        return (
-          <span className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-full">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Verified
-          </span>
-        );
-      case 'needs_followup':
-        return (
-          <span className="flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Needs Follow-up
-          </span>
-        );
-      case 'in_progress':
-        return (
-          <span className="flex items-center gap-1 text-xs font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 rounded-full">
-            <Clock className="w-3.5 h-3.5" />
-            In Progress
-          </span>
-        );
-      case 'pending':
-      default:
-        return (
-          <span className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">
-            <HelpCircle className="w-3.5 h-3.5" />
-            Pending
-          </span>
-        );
-    }
-  };
-
+  // Legacy fallback when only flat skills are available.
   if (list.length === 0 && skills && skills.length > 0) {
-    // Legacy fallback for skills prop if competencies array is empty
+    const n = skills.filter((s) => s.status === 'Verified').length;
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            Verified Skills Breakdown
-          </h3>
-          <span className="text-xs text-gray-400 font-mono">
-            {skills.filter((s) => s.status === 'Verified').length} / {skills.length} Skills Proven
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {skills.map((skill, idx) => (
+      <div className="space-y-5">
+        <Head n={n} total={skills.length} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {skills.map((s, i) => (
             <motion.div
-              key={skill.name}
-              initial={{ opacity: 0, y: 15 }}
+              key={s.name}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1, duration: 0.3 }}
-              className="glass-card rounded-2xl p-5 border border-white/10 shadow-xl space-y-3 hover:border-indigo-500/40"
+              transition={{ delay: i * 0.05, ease: [0.34, 1.56, 0.64, 1] }}
+              className="border-3 border-ink bg-paper p-4 shadow-brutal press"
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="text-base font-bold text-white flex items-center gap-2">
-                    {skill.name}
-                  </h4>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    Evidence Score: <strong className="text-cyan-300 font-mono">{skill.score}%</strong>
-                  </div>
-                </div>
+              <h4 className="font-display text-lg uppercase leading-tight">{s.name}</h4>
+              <div className="mt-2 h-4 border-3 border-ink bg-paper">
+                <div className="h-full bg-mint" style={{ width: `${s.score}%` }} />
               </div>
-
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/5">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-500"
-                  style={{ width: `${skill.score}%` }}
-                />
-              </div>
-
-              {skill.evidenceSnippet && (
-                <div className="p-3 rounded-xl bg-slate-950/70 border border-white/5 text-xs text-gray-300 space-y-1">
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-cyan-400">
-                    <FileCode className="w-3.5 h-3.5" />
-                    Empirical Evidence Logged:
-                  </div>
-                  <p className="italic text-gray-400 font-mono text-[11px]">
-                    &quot;{skill.evidenceSnippet}&quot;
-                  </p>
-                </div>
+              <div className="mt-1 text-right font-mono text-xs font-bold">{s.score}%</div>
+              {s.evidenceSnippet && (
+                <p className="mt-2 border-l-3 border-ink pl-2 text-[11px] font-medium italic">
+                  &ldquo;{s.evidenceSnippet}&rdquo;
+                </p>
               )}
             </motion.div>
           ))}
@@ -110,78 +68,66 @@ export default function VerifiedSkills({ competencies, skills }: VerifiedSkillsP
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-emerald-400" />
-          Verified Competencies Breakdown
-        </h3>
-        <span className="text-xs text-gray-400 font-mono">
-          {verifiedCount} / {totalCount} Skills Proven
-        </span>
-      </div>
+    <div className="space-y-5">
+      <Head n={proven} total={list.length} />
 
       {list.length === 0 ? (
-        <div className="p-6 rounded-2xl glass-card border border-white/10 text-center text-xs text-gray-400 italic">
-          No competency evaluations logged yet.
+        <div className="border-3 border-ink bg-sand p-8 text-center shadow-brutal">
+          <p className="font-mono text-xs font-bold uppercase text-smoke">
+            Nothing entered into the record yet
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {list.map((comp, idx) => (
-            <motion.div
-              key={comp.competency}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.05, duration: 0.3 }}
-              className="glass-card rounded-2xl p-5 border border-white/10 shadow-xl space-y-3 hover:border-indigo-500/40"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h4 className="text-base font-bold text-white flex items-center gap-2">
-                    {comp.competency}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {list.map((c, i) => {
+            const m = META[c.status] ?? META.pending;
+            return (
+              <motion.div
+                key={c.competency}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04, ease: [0.34, 1.56, 0.64, 1] }}
+                className="press border-3 border-ink bg-paper p-4 shadow-brutal"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="font-display text-lg uppercase leading-tight">
+                    {c.competency}
                   </h4>
-                  <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-3">
-                    <span>
-                      Evidence Score: <strong className="text-cyan-300 font-mono">{comp.evidenceScore}%</strong>
-                    </span>
-                    <span>
-                      Attempts: <strong className="text-gray-200 font-mono">{comp.attempts}</strong>
-                    </span>
-                  </div>
+                  <span
+                    className={cn(
+                      'shrink-0 border-2 border-ink px-1.5 py-0.5 font-mono text-[9px] font-bold',
+                      m.bg
+                    )}
+                  >
+                    {m.tag}
+                  </span>
                 </div>
-                {getStatusBadge(comp.status)}
-              </div>
 
-              {/* Progress bar */}
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/5">
-                <div
-                  className={`h-full transition-all duration-500 ${
-                    comp.status === 'verified'
-                      ? 'bg-gradient-to-r from-emerald-500 to-cyan-400'
-                      : comp.status === 'needs_followup'
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-400'
-                      : comp.status === 'in_progress'
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-500'
-                      : 'bg-slate-700'
-                  }`}
-                  style={{ width: `${comp.evidenceScore}%` }}
-                />
-              </div>
+                <div className="mt-2 flex items-center gap-3 font-mono text-[10px] font-bold text-smoke">
+                  <span>TRIES {c.attempts}</span>
+                  {typeof c.day === 'number' && <span>DAY {c.day}</span>}
+                </div>
 
-              {/* Competency Notes if present */}
-              {comp.notes && comp.notes.trim().length > 0 && (
-                <div className="p-3 rounded-xl bg-slate-950/70 border border-white/5 text-xs text-gray-300 space-y-1">
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-cyan-400">
-                    <FileCode className="w-3.5 h-3.5" />
-                    Evaluator Notes:
-                  </div>
-                  <p className="italic text-gray-400 font-mono text-[11px]">
-                    &quot;{comp.notes}&quot;
+                <div className="mt-2 h-4 border-3 border-ink bg-paper">
+                  <motion.div
+                    className={cn('h-full', m.bar)}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${c.evidenceScore}%` }}
+                    transition={{ duration: 0.7, delay: i * 0.04 }}
+                  />
+                </div>
+                <div className="mt-1 text-right font-mono text-xs font-bold">
+                  {c.evidenceScore}%
+                </div>
+
+                {c.notes?.trim() && (
+                  <p className="mt-2 border-l-3 border-ink pl-2 text-[11px] font-medium italic">
+                    &ldquo;{c.notes}&rdquo;
                   </p>
-                </div>
-              )}
-            </motion.div>
-          ))}
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>

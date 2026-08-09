@@ -2,13 +2,93 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Navbar from '../../components/Navbar';
-import { User, Briefcase, Award, Building2, Play, Sparkles, ArrowRight, ShieldCheck, Hash } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { CandidateInfo } from '../../types/interview';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, Check, Dices, FileWarning } from 'lucide-react';
+import Navbar from '@/components/Navbar';
+import Box from '@/components/ui/Box';
+import Reveal from '@/components/ui/Reveal';
+import Magnetic from '@/components/ui/Magnetic';
+import { CandidateInfo } from '@/types/interview';
+import { cn } from '@/lib/utils';
+
+type Level = CandidateInfo['experienceLevel'];
+type Mode = CandidateInfo['companyMode'];
+
+const PRESETS: {
+  id: string;
+  name: string;
+  role: string;
+  level: Level;
+  mode: Mode;
+  initials: string;
+  bg: string;
+}[] = [
+  {
+    id: 'CAND-001',
+    name: 'Sarah Johnson',
+    role: 'Senior Data Engineer',
+    level: 'Senior',
+    mode: 'Startup (Fast & Scrappy)',
+    initials: 'SJ',
+    bg: 'bg-acid',
+  },
+  {
+    id: 'CAND-002',
+    name: 'Alex Turner',
+    role: 'Backend Software Engineer',
+    level: 'Mid-Level',
+    mode: 'OpenAI (AI Architecture & Math)',
+    initials: 'AT',
+    bg: 'bg-hot text-paper',
+  },
+  {
+    id: 'CAND-003',
+    name: 'Emily Chen',
+    role: 'AI Engineer',
+    level: 'Senior',
+    mode: 'Google (Algorithms & Scale)',
+    initials: 'EC',
+    bg: 'bg-cobalt text-paper',
+  },
+];
+
+const LEVELS: { value: Level; label: string; yrs: string }[] = [
+  { value: 'Junior', label: 'JUNIOR', yrs: '0–2' },
+  { value: 'Mid-Level', label: 'MID', yrs: '3–5' },
+  { value: 'Senior', label: 'SENIOR', yrs: '5–8' },
+  { value: 'Lead / Principal', label: 'LEAD', yrs: '8+' },
+];
+
+const MODES: { value: Mode; label: string; desc: string; bg: string }[] = [
+  {
+    value: 'Startup (Fast & Scrappy)',
+    label: 'STARTUP',
+    desc: 'Fast & scrappy. Breadth and ownership.',
+    bg: 'bg-acid',
+  },
+  {
+    value: 'Google (Algorithms & Scale)',
+    label: 'GOOGLE',
+    desc: 'Algorithms & scale. Systems rigour.',
+    bg: 'bg-sun',
+  },
+  {
+    value: 'Microsoft (Enterprise & Systems)',
+    label: 'MICROSOFT',
+    desc: 'Enterprise & systems. Maintainability.',
+    bg: 'bg-mint',
+  },
+  {
+    value: 'OpenAI (AI Architecture & Math)',
+    label: 'OPENAI',
+    desc: 'AI architecture & math. First principles.',
+    bg: 'bg-violetPop text-paper',
+  },
+];
 
 export default function CandidateSelectionPage() {
   const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState<CandidateInfo>({
     candidateId: 'CAND-001',
@@ -20,6 +100,7 @@ export default function CandidateSelectionPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     if (typeof window !== 'undefined') {
       localStorage.setItem('veritas_candidate', JSON.stringify(form));
       localStorage.removeItem('veritas_session_id');
@@ -29,197 +110,320 @@ export default function CandidateSelectionPage() {
     router.push('/interview');
   };
 
-  const applyPreset = (
-    id: string,
-    name: string,
-    role: string,
-    level: CandidateInfo['experienceLevel'],
-    company: CandidateInfo['companyMode']
-  ) => {
+  const applyPreset = (p: (typeof PRESETS)[number]) => {
     setForm({
-      candidateId: id,
-      name,
-      targetRole: role,
-      experienceLevel: level,
-      companyMode: company,
+      candidateId: p.id,
+      name: p.name,
+      targetRole: p.role,
+      experienceLevel: p.level,
+      companyMode: p.mode,
     });
   };
 
+  const randomise = () => {
+    const p = PRESETS[Math.floor(Math.random() * PRESETS.length)];
+    applyPreset(p);
+  };
+
+  const selectedMode = MODES.find((m) => m.value === form.companyMode) ?? MODES[0];
+  const initials =
+    form.name
+      .split(' ')
+      .filter(Boolean)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || '??';
+
   return (
-    <div className="min-h-screen bg-[#090d16] text-gray-100 flex flex-col">
-      <Navbar currentStep="select" />
+    <div className="min-h-screen">
+      <Navbar currentStep="select" candidateName={form.name} />
 
-      <main className="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-12 flex flex-col justify-center w-full">
-
-        {/* Page Title */}
-        <div className="text-center space-y-2 mb-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            Step 1 of 3: Assessment Configuration
-          </motion.div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Configure Candidate Verification
-          </h1>
-          <p className="text-sm text-gray-400 max-w-md mx-auto">
-            Set target role parameters and evaluation mode for adaptive AI skill verification.
-          </p>
-        </div>
-
-        {/* Quick Demo Presets */}
-        <div className="mb-6 space-y-2">
-          <div className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Demo Candidate Presets:
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button
-              type="button"
-              onClick={() => applyPreset('CAND-001', 'Sarah Johnson', 'Senior Data Engineer', 'Senior', 'Startup (Fast & Scrappy)')}
-              className="glass-card p-3 rounded-xl border border-white/10 text-left hover:border-indigo-500/40 transition-all text-xs"
-            >
-              <div className="font-bold text-white">Sarah Johnson (CAND-001)</div>
-              <div className="text-[11px] text-gray-400">Senior Data Engineer</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => applyPreset('CAND-002', 'Alex Turner', 'Backend Software Engineer', 'Mid-Level', 'OpenAI (AI Architecture & Math)')}
-              className="glass-card p-3 rounded-xl border border-white/10 text-left hover:border-violet-500/40 transition-all text-xs"
-            >
-              <div className="font-bold text-white">Alex Turner (CAND-002)</div>
-              <div className="text-[11px] text-gray-400">Backend Software Engineer</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => applyPreset('CAND-003', 'Emily Chen', 'AI Engineer', 'Senior', 'Google (Algorithms & Scale)')}
-              className="glass-card p-3 rounded-xl border border-white/10 text-left hover:border-cyan-500/40 transition-all text-xs"
-            >
-              <div className="font-bold text-white">Emily Chen (CAND-003)</div>
-              <div className="text-[11px] text-gray-400">AI Specialist</div>
+      <main id="main" className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
+        {/* Header */}
+        <Reveal>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <span className="label bg-cobalt">STEP 01 / 03</span>
+              <h1 className="mt-3 display text-[clamp(2.4rem,8vw,6rem)]">
+                WHO&apos;S ON
+                <br />
+                <span className="text-hot">THE STAND?</span>
+              </h1>
+            </div>
+            <button onClick={randomise} className="btn btn-paper text-xs">
+              <Dices className="h-4 w-4" strokeWidth={3} />
+              SURPRISE ME
             </button>
           </div>
+        </Reveal>
+
+        <div className="mt-10 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+          {/* ---------- LEFT ---------- */}
+          <div className="space-y-6">
+            {/* Presets */}
+            <Reveal>
+              <div>
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="label">PRESETS</span>
+                  <span className="font-mono text-xs font-bold text-smoke">
+                    — pick a file
+                  </span>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {PRESETS.map((p, i) => {
+                    const active = form.candidateId === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => applyPreset(p)}
+                        aria-pressed={active}
+                        className={cn(
+                          'group relative border-3 border-ink p-4 text-left transition-all duration-150',
+                          active
+                            ? 'bg-ink text-paper shadow-brutal-lg'
+                            : cn(p.bg, 'shadow-brutal hover:-translate-y-1 hover:shadow-brutal-lg'),
+                          i === 1 && 'sm:rotate-1',
+                          i === 2 && 'sm:-rotate-1'
+                        )}
+                      >
+                        <div className="flex items-start justify-between">
+                          <span
+                            className={cn(
+                              'flex h-12 w-12 items-center justify-center border-3 border-ink font-display text-lg',
+                              active ? 'bg-acid text-ink' : 'bg-paper text-ink'
+                            )}
+                          >
+                            {p.initials}
+                          </span>
+                          {active && (
+                            <span className="border-3 border-paper bg-acid p-1">
+                              <Check className="h-4 w-4 text-ink" strokeWidth={4} />
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-3 font-display text-lg leading-tight">
+                          {p.name}
+                        </div>
+                        <div className="font-mono text-[10px] font-bold opacity-70">
+                          {p.id}
+                        </div>
+                        <div className="mt-1 text-xs font-medium">{p.role}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </Reveal>
+
+            {/* Form */}
+            <Reveal delay={0.08}>
+              <Box shadow="lg" as="section" className="p-5 sm:p-7">
+                <form onSubmit={handleSubmit} className="space-y-7">
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="cid" className="label mb-2 block w-fit">
+                        FILE NO.
+                      </label>
+                      <input
+                        id="cid"
+                        type="text"
+                        required
+                        value={form.candidateId}
+                        onChange={(e) => setForm({ ...form, candidateId: e.target.value })}
+                        placeholder="CAND-001"
+                        className="field font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="nm" className="label mb-2 block w-fit">
+                        NAME
+                      </label>
+                      <input
+                        id="nm"
+                        type="text"
+                        required
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        placeholder="Sarah Johnson"
+                        className="field"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="role" className="label mb-2 block w-fit">
+                      TARGET ROLE
+                    </label>
+                    <input
+                      id="role"
+                      type="text"
+                      required
+                      value={form.targetRole}
+                      onChange={(e) => setForm({ ...form, targetRole: e.target.value })}
+                      placeholder="Senior Data Engineer"
+                      className="field"
+                    />
+                  </div>
+
+                  {/* Level */}
+                  <div>
+                    <span className="label mb-2 block w-fit">EXPERIENCE</span>
+                    <div
+                      role="radiogroup"
+                      aria-label="Experience level"
+                      className="grid grid-cols-2 border-3 border-ink sm:grid-cols-4"
+                    >
+                      {LEVELS.map((l, i) => {
+                        const active = form.experienceLevel === l.value;
+                        return (
+                          <button
+                            key={l.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => setForm({ ...form, experienceLevel: l.value })}
+                            className={cn(
+                              'px-3 py-3 text-center transition-colors duration-150',
+                              i > 0 && 'border-l-3 border-ink',
+                              i < 2 && 'border-b-3 border-ink sm:border-b-0',
+                              active ? 'bg-ink text-paper' : 'bg-paper hover:bg-acid'
+                            )}
+                          >
+                            <div className="font-display text-base">{l.label}</div>
+                            <div className="font-mono text-[10px] font-bold opacity-70">
+                              {l.yrs} yrs
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Mode */}
+                  <div>
+                    <span className="label mb-2 block w-fit">EVALUATION LENS</span>
+                    <div
+                      role="radiogroup"
+                      aria-label="Company evaluation mode"
+                      className="grid gap-3 sm:grid-cols-2"
+                    >
+                      {MODES.map((m) => {
+                        const active = form.companyMode === m.value;
+                        return (
+                          <button
+                            key={m.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => setForm({ ...form, companyMode: m.value })}
+                            className={cn(
+                              'border-3 border-ink p-3 text-left transition-all duration-150',
+                              active
+                                ? 'bg-ink text-paper shadow-brutal'
+                                : cn(m.bg, 'hover:-translate-y-0.5 hover:shadow-brutal')
+                            )}
+                          >
+                            <div className="font-display text-lg">{m.label}</div>
+                            <div className="mt-0.5 text-[11px] font-medium leading-snug">
+                              {m.desc}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <Magnetic className="block w-full">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="btn btn-hot w-full py-5 text-base"
+                    >
+                      {submitting ? 'OPENING FILE…' : 'BEGIN INTERROGATION'}
+                      <ArrowRight className="h-5 w-5" strokeWidth={3} />
+                    </button>
+                  </Magnetic>
+                </form>
+              </Box>
+            </Reveal>
+          </div>
+
+          {/* ---------- RIGHT: dossier ---------- */}
+          <Reveal delay={0.14} from="right">
+            <aside className="lg:sticky lg:top-28">
+              <Box shadow="xl" className="overflow-hidden">
+                <div className="flex items-center justify-between border-b-3 border-ink bg-ink px-4 py-2">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-paper">
+                    CASE FILE
+                  </span>
+                  <span className="font-mono text-[11px] font-bold text-acid">OPEN</span>
+                </div>
+
+                <div className="space-y-4 p-5">
+                  <div className="flex items-center gap-4">
+                    <span className="flex h-16 w-16 shrink-0 items-center justify-center border-3 border-ink bg-acid font-display text-2xl">
+                      {initials}
+                    </span>
+                    <div className="min-w-0">
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={form.name}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 8 }}
+                          transition={{ duration: 0.18 }}
+                          className="truncate font-display text-2xl leading-tight"
+                        >
+                          {form.name || 'UNNAMED'}
+                        </motion.div>
+                      </AnimatePresence>
+                      <div className="truncate font-mono text-xs font-bold text-smoke">
+                        {form.candidateId || '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t-3 border-dashed border-ink pt-4">
+                    <dl className="space-y-3">
+                      {[
+                        { k: 'ROLE', v: form.targetRole || '—' },
+                        { k: 'LEVEL', v: form.experienceLevel },
+                        { k: 'LENS', v: selectedMode.label },
+                      ].map((row) => (
+                        <div key={row.k} className="flex items-baseline justify-between gap-3">
+                          <dt className="font-mono text-[10px] font-bold uppercase tracking-widest text-smoke">
+                            {row.k}
+                          </dt>
+                          <dd className="max-w-[62%] truncate text-right font-display text-sm uppercase">
+                            {row.v}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+
+                  <div className={cn('border-3 border-ink p-3', selectedMode.bg)}>
+                    <div className="font-mono text-[10px] font-bold uppercase tracking-widest">
+                      POSTURE
+                    </div>
+                    <p className="mt-1 text-xs font-bold leading-snug">{selectedMode.desc}</p>
+                  </div>
+
+                  <div className="flex items-start gap-2 border-3 border-ink bg-sun p-3">
+                    <FileWarning className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={3} />
+                    <p className="text-[11px] font-bold leading-snug">
+                      Starting a new file wipes the previous transcript and evidence from
+                      this browser.
+                    </p>
+                  </div>
+                </div>
+              </Box>
+            </aside>
+          </Reveal>
         </div>
-
-        {/* Form Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="glass-panel rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl space-y-6"
-        >
-          <form onSubmit={handleSubmit} className="space-y-5">
-
-            {/* Candidate ID */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
-                <Hash className="w-4 h-4 text-cyan-400" />
-                Backend Candidate ID
-              </label>
-              <input
-                type="text"
-                required
-                value={form.candidateId}
-                onChange={(e) => setForm({ ...form, candidateId: e.target.value })}
-                placeholder="e.g. CAND-001"
-                className="w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/15 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm transition-all font-mono"
-              />
-            </div>
-
-            {/* Candidate Name */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
-                <User className="w-4 h-4 text-indigo-400" />
-                Candidate Name
-              </label>
-              <input
-                type="text"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Sarah Johnson"
-                className="w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/15 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm transition-all"
-              />
-            </div>
-
-            {/* Target Role */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-cyan-400" />
-                Target Role
-              </label>
-              <input
-                type="text"
-                required
-                value={form.targetRole}
-                onChange={(e) => setForm({ ...form, targetRole: e.target.value })}
-                placeholder="e.g. Senior Data Engineer"
-                className="w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/15 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm transition-all"
-              />
-            </div>
-
-            {/* Grid for Dropdowns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-              {/* Experience Level */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
-                  <Award className="w-4 h-4 text-emerald-400" />
-                  Experience Level
-                </label>
-                <select
-                  value={form.experienceLevel}
-                  onChange={(e) =>
-                    setForm({ ...form, experienceLevel: e.target.value as CandidateInfo['experienceLevel'] })
-                  }
-                  className="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-white/15 text-white focus:outline-none focus:border-indigo-500 text-sm transition-all"
-                >
-                  <option value="Junior">Junior (0-2 years)</option>
-                  <option value="Mid-Level">Mid-Level (3-5 years)</option>
-                  <option value="Senior">Senior (5-8 years)</option>
-                  <option value="Lead / Principal">Lead / Principal (8+ years)</option>
-                </select>
-              </div>
-
-              {/* Company Mode */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-violet-400" />
-                  Company Evaluation Mode (Optional)
-                </label>
-                <select
-                  value={form.companyMode}
-                  onChange={(e) =>
-                    setForm({ ...form, companyMode: e.target.value as CandidateInfo['companyMode'] })
-                  }
-                  className="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-white/15 text-white focus:outline-none focus:border-indigo-500 text-sm transition-all"
-                >
-                  <option value="Startup (Fast & Scrappy)">Startup (Fast & Scrappy)</option>
-                  <option value="Google (Algorithms & Scale)">Google (Algorithms & Scale)</option>
-                  <option value="Microsoft (Enterprise & Systems)">Microsoft (Enterprise & Systems)</option>
-                  <option value="OpenAI (AI Architecture & Math)">OpenAI (AI Architecture & Math)</option>
-                </select>
-              </div>
-
-            </div>
-
-            {/* Start Button */}
-            <div className="pt-4">
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-extrabold text-base shadow-xl shadow-indigo-600/30 border border-indigo-400/30 transition-all hover:scale-[1.01]"
-              >
-                <Play className="w-5 h-5 fill-white" />
-                <span>Start Adaptive AI Interview</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-
-          </form>
-        </motion.div>
       </main>
     </div>
   );

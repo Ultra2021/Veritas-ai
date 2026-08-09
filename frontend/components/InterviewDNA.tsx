@@ -1,131 +1,72 @@
 'use client';
 
 import React from 'react';
-import {
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  ResponsiveContainer,
-  Tooltip,
-} from 'recharts';
-import { InterviewDNA as InterviewDNAType } from '../types/interview';
-import { Dna } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { InterviewDNA as InterviewDNAType } from '@/types/interview';
+import { cn } from '@/lib/utils';
 
 interface InterviewDNAProps {
   dna: InterviewDNAType | null | undefined;
   compact?: boolean;
 }
 
+const VECTORS = [
+  { key: 'technicalKnowledge', label: 'TECHNICAL', bg: 'bg-cobalt' },
+  { key: 'communication', label: 'COMMS', bg: 'bg-hot' },
+  { key: 'problemSolving', label: 'PROBLEM', bg: 'bg-acid' },
+  { key: 'leadership', label: 'LEADERSHIP', bg: 'bg-sun' },
+  { key: 'learningAbility', label: 'LEARNING', bg: 'bg-mint' },
+] as const;
+
 export default function InterviewDNA({ dna, compact = false }: InterviewDNAProps) {
-  if (!dna) {
-    return (
-      <div className={`glass-card rounded-2xl ${compact ? 'p-3.5' : 'p-6'} border border-white/10 shadow-xl space-y-3`}>
-        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-          <div className="flex items-center gap-2">
-            <Dna className="w-4 h-4 text-violet-400" />
-            <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-bold uppercase tracking-wider text-gray-200`}>
-              Interview DNA Matrix
-            </h3>
-          </div>
-          <span className="text-[10px] text-violet-300 font-medium px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30">
-            5-Vector Analysis
-          </span>
-        </div>
-        <div className={`w-full ${compact ? 'h-36' : 'h-48'} flex items-center justify-center text-xs text-gray-400 italic text-center p-4`}>
-          Interview DNA Matrix data not yet available.
-        </div>
-      </div>
-    );
-  }
-
-  const technical = dna.technicalKnowledge ?? 0;
-  const communication = dna.communication ?? 0;
-  const problemSolving = dna.problemSolving ?? 0;
-  const leadership = dna.leadership ?? 0;
-  const learning = dna.learningAbility ?? 0;
-
-  const chartData = [
-    { axis: 'Technical Knowledge', value: technical, fullMark: 100 },
-    { axis: 'Communication', value: communication, fullMark: 100 },
-    { axis: 'Problem Solving', value: problemSolving, fullMark: 100 },
-    { axis: 'Leadership', value: leadership, fullMark: 100 },
-    { axis: 'Learning Ability', value: learning, fullMark: 100 },
-  ];
+  const values = {
+    technicalKnowledge: dna?.technicalKnowledge ?? 0,
+    communication: dna?.communication ?? 0,
+    problemSolving: dna?.problemSolving ?? 0,
+    leadership: dna?.leadership ?? 0,
+    learningAbility: dna?.learningAbility ?? 0,
+  };
 
   return (
-    <div className={`glass-card rounded-2xl ${compact ? 'p-3.5' : 'p-6'} border border-white/10 shadow-xl space-y-3`}>
-      <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-        <div className="flex items-center gap-2">
-          <Dna className="w-4 h-4 text-violet-400" />
-          <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-bold uppercase tracking-wider text-gray-200`}>
-            Interview DNA Matrix
-          </h3>
-        </div>
-        <span className="text-[10px] text-violet-300 font-medium px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30">
-          5-Vector Analysis
+    <div className="border-3 border-ink bg-paper shadow-brutal-md">
+      <div className="flex items-center justify-between border-b-3 border-ink bg-ink px-4 py-2">
+        <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-paper">
+          DNA / 5 VECTORS
         </span>
+        {!dna && <span className="font-mono text-[11px] font-bold text-sun">NO DATA</span>}
       </div>
 
-      {/* Radar Chart Container */}
-      <div className={`w-full ${compact ? 'h-48' : 'h-72'} flex items-center justify-center`}>
-        <ResponsiveContainer width="100%" height="100%">
-          <RadarChart cx="50%" cy="50%" outerRadius={compact ? '65%' : '75%'} data={chartData}>
-            <PolarGrid stroke="rgba(255, 255, 255, 0.15)" strokeDasharray="3 3" />
-            <PolarAngleAxis
-              dataKey="axis"
-              tick={{ fill: '#cbd5e1', fontSize: compact ? 10 : 12, fontWeight: 500 }}
-            />
-            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} />
-            <Radar
-              name="Candidate Score"
-              dataKey="value"
-              stroke="#818cf8"
-              fill="url(#radarGradient)"
-              fillOpacity={0.6}
-            />
-            <defs>
-              <linearGradient id="radarGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#818cf8" stopOpacity={0.8} />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.3} />
-              </linearGradient>
-            </defs>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                borderColor: 'rgba(255, 255, 255, 0.15)',
-                borderRadius: '12px',
-                color: '#fff',
-                fontSize: '12px',
-              }}
-            />
-          </RadarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {!compact && (
-        <div className="grid grid-cols-5 gap-2 pt-2 border-t border-white/10 text-center">
-          <div>
-            <div className="text-[10px] text-gray-400">Technical</div>
-            <div className="text-sm font-extrabold text-indigo-400">{technical}%</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-gray-400">Comm.</div>
-            <div className="text-sm font-extrabold text-cyan-400">{communication}%</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-gray-400">Problem</div>
-            <div className="text-sm font-extrabold text-emerald-400">{problemSolving}%</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-gray-400">Leadership</div>
-            <div className="text-sm font-extrabold text-amber-400">{leadership}%</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-gray-400">Learning</div>
-            <div className="text-sm font-extrabold text-violet-400">{learning}%</div>
-          </div>
+      {!dna ? (
+        <p className="p-6 text-center font-mono text-xs font-bold uppercase text-smoke">
+          Builds as evidence lands
+        </p>
+      ) : (
+        <div className={cn('space-y-3', compact ? 'p-3' : 'p-5')}>
+          {VECTORS.map((v, i) => {
+            const val = values[v.key];
+            return (
+              <div key={v.key}>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
+                    {v.label}
+                  </span>
+                  <span className="font-display text-lg leading-none">{val}</span>
+                </div>
+                <div className="mt-1 h-5 border-3 border-ink bg-paper">
+                  <motion.div
+                    className={cn('h-full border-r-3 border-ink', v.bg)}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${val}%` }}
+                    transition={{
+                      duration: 0.7,
+                      delay: i * 0.07,
+                      ease: [0.34, 1.56, 0.64, 1],
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

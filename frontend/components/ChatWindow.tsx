@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowDown, Crosshair } from 'lucide-react';
 import MessageBubble from './MessageBubble';
-import { ChatMessage } from '../types/interview';
-import { Bot, Sparkles, MessageSquare } from 'lucide-react';
+import { ChatMessage } from '@/types/interview';
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -11,46 +12,98 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ messages, isAiThinking }: ChatWindowProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [showJump, setShowJump] = useState(false);
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+  }, []);
+
+  // Auto-scroll only when already near the bottom.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isAiThinking]);
+    const el = containerRef.current;
+    if (!el) return;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (dist < 240) scrollToBottom();
+  }, [messages, isAiThinking, scrollToBottom]);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setShowJump(el.scrollHeight - el.scrollTop - el.clientHeight > 260);
+  }, []);
+
+  const lastAiIndex = messages.map((m) => m.sender).lastIndexOf('ai');
 
   return (
-    <div className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-[380px] max-h-[560px] custom-scrollbar">
-      {messages.length === 0 ? (
-        <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-400">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4">
-            <MessageSquare className="w-8 h-8 text-indigo-400" />
+    <div className="relative flex min-h-0 flex-1">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 space-y-5 overflow-y-auto p-1"
+      >
+        {messages.length === 0 && !isAiThinking ? (
+          <div className="flex h-full min-h-[300px] flex-col items-center justify-center px-6 text-center">
+            <div className="border-3 border-ink bg-sun p-4 shadow-brutal">
+              <Crosshair className="h-8 w-8" strokeWidth={2.5} />
+            </div>
+            <h3 className="mt-5 font-display text-2xl uppercase">STANDING BY</h3>
+            <p className="mt-2 max-w-sm text-sm font-medium text-smoke">
+              The interrogator is loading your file. Questions incoming.
+            </p>
           </div>
-          <h3 className="text-lg font-bold text-white mb-1">Interview Session Initialized</h3>
-          <p className="text-sm text-gray-400 max-w-md">
-            Veritas AI will ask targeted questions to collect evidence and verify your technical skills in real time.
-          </p>
-        </div>
-      ) : (
-        messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
-      )}
+        ) : (
+          <AnimatePresence initial={false}>
+            {messages.map((msg, i) => (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                typewriter={i === lastAiIndex && i === messages.length - 1}
+              />
+            ))}
+          </AnimatePresence>
+        )}
 
-      {/* Thinking Indicator */}
-      {isAiThinking && (
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-900/60 border border-indigo-500/20 max-w-xs text-xs text-indigo-300 animate-pulse">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center">
-            <Bot className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="flex items-center gap-1.5 font-medium">
-            <span>Evaluating answer evidence</span>
-            <span className="flex gap-1 ml-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce"></span>
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:0.2s]"></span>
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0.4s]"></span>
+        {isAiThinking && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 border-3 border-ink bg-cobalt px-4 py-3 text-paper shadow-brutal"
+          >
+            <span className="font-mono text-xs font-bold uppercase tracking-widest">
+              WEIGHING THE EVIDENCE
             </span>
-          </div>
-        </div>
-      )}
+            <span className="flex gap-1">
+              {[0, 0.15, 0.3].map((d) => (
+                <motion.span
+                  key={d}
+                  className="h-2.5 w-2.5 bg-acid"
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{ duration: 0.7, repeat: Infinity, delay: d }}
+                />
+              ))}
+            </span>
+          </motion.div>
+        )}
 
-      <div ref={bottomRef} />
+        <div ref={bottomRef} />
+      </div>
+
+      <AnimatePresence>
+        {showJump && (
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            onClick={() => scrollToBottom()}
+            className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 border-3 border-ink bg-acid px-3 py-2 font-mono text-[10px] font-bold uppercase shadow-brutal"
+          >
+            <ArrowDown className="h-3.5 w-3.5" strokeWidth={3} />
+            LATEST
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

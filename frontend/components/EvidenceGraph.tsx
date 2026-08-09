@@ -2,8 +2,8 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, AlertCircle, HelpCircle, ShieldAlert, Cpu } from 'lucide-react';
-import { SkillStatus } from '../types/interview';
+import { SkillStatus } from '@/types/interview';
+import { cn } from '@/lib/utils';
 
 export interface EvidenceSkillItem {
   name: string;
@@ -16,88 +16,78 @@ interface EvidenceGraphProps {
   currentSkill?: string;
 }
 
-export default function EvidenceGraph({ skills, currentSkill }: EvidenceGraphProps) {
-  const getStatusBadge = (status: SkillStatus) => {
-    switch (status) {
-      case 'Verified':
-        return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            Verified
-          </span>
-        );
-      case 'Partial':
-        return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
-            <AlertCircle className="w-3 h-3 text-amber-400" />
-            Partial
-          </span>
-        );
-      case 'Needs More Evidence':
-      default:
-        return (
-          <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-800/80 border border-slate-700 px-2 py-0.5 rounded-full">
-            <HelpCircle className="w-3 h-3 text-slate-400" />
-            Needs Evidence
-          </span>
-        );
-    }
-  };
+const STATUS: Record<SkillStatus, { tag: string; bg: string; bar: string }> = {
+  Verified: { tag: 'PROVEN', bg: 'bg-mint', bar: 'bg-mint' },
+  Partial: { tag: 'SHAKY', bg: 'bg-sun', bar: 'bg-sun' },
+  'Needs More Evidence': { tag: 'UNPROVEN', bg: 'bg-sand', bar: 'bg-sand' },
+};
 
-  const getBarColor = (status: SkillStatus) => {
-    switch (status) {
-      case 'Verified':
-        return 'from-emerald-500 to-cyan-400 shadow-emerald-500/30';
-      case 'Partial':
-        return 'from-amber-500 to-orange-400 shadow-amber-500/30';
-      case 'Needs More Evidence':
-      default:
-        return 'from-slate-600 to-slate-700';
-    }
-  };
+export default function EvidenceGraph({ skills, currentSkill }: EvidenceGraphProps) {
+  const proven = skills.filter((s) => s.status === 'Verified').length;
 
   return (
-    <div className="glass-card rounded-2xl p-4 border border-white/10 shadow-xl space-y-4">
-      <div className="flex items-center justify-between border-b border-white/10 pb-3">
-        <div className="flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-cyan-400" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-200">
-            Live Evidence Graph
-          </h3>
-        </div>
-        <span className="text-[10px] text-gray-400 bg-slate-800 px-2 py-0.5 rounded-md font-mono">
-          {skills.filter((s) => s.status === 'Verified').length}/{skills.length} Verified
+    <div className="border-3 border-ink bg-paper shadow-brutal-md">
+      <div className="flex items-center justify-between border-b-3 border-ink bg-ink px-4 py-2">
+        <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-paper">
+          EVIDENCE LEDGER
+        </span>
+        <span className="font-mono text-[11px] font-bold text-acid">
+          {proven}/{skills.length}
         </span>
       </div>
 
-      {currentSkill && (
-        <div className="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs">
-          <span className="text-gray-400 font-medium">Active Evaluation:</span>
-          <span className="font-semibold text-cyan-300 animate-pulse">{currentSkill}</span>
-        </div>
-      )}
+      <div className="divide-y-3 divide-ink">
+        {skills.length === 0 && (
+          <p className="p-6 text-center font-mono text-xs font-bold uppercase text-smoke">
+            Nothing on record yet
+          </p>
+        )}
 
-      <div className="space-y-3.5 pt-1">
-        {skills.map((skill, idx) => (
-          <div key={skill.name || idx} className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-gray-200 flex items-center gap-1.5">
-                {skill.name}
-              </span>
-              {getStatusBadge(skill.status)}
-            </div>
+        {skills.map((skill, i) => {
+          const meta = STATUS[skill.status] ?? STATUS['Needs More Evidence'];
+          const active = currentSkill === skill.name;
 
-            {/* Custom ASCII style progress indicator preview + Smooth Framer Bar */}
-            <div className="relative w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden border border-white/5">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${skill.score}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-                className={`h-full bg-gradient-to-r ${getBarColor(skill.status)} shadow-md rounded-full`}
-              />
+          return (
+            <div
+              key={skill.name || i}
+              className={cn('p-3 transition-colors', active && 'bg-acid/30')}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 flex-1 text-xs font-bold leading-snug">
+                  {active && <span className="mr-1 animate-blink">▶</span>}
+                  {skill.name}
+                </span>
+                <span
+                  className={cn(
+                    'shrink-0 border-2 border-ink px-1.5 py-0.5 font-mono text-[9px] font-bold',
+                    meta.bg
+                  )}
+                >
+                  {meta.tag}
+                </span>
+              </div>
+
+              {/* stepped bar */}
+              <div className="mt-2 flex h-4 gap-0.5 border-2 border-ink bg-paper p-0.5">
+                {Array.from({ length: 10 }).map((_, seg) => (
+                  <motion.div
+                    key={seg}
+                    className={cn(
+                      'flex-1 border border-ink/20',
+                      seg < Math.round(skill.score / 10) ? meta.bar : 'bg-transparent'
+                    )}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: seg * 0.03 }}
+                  />
+                ))}
+              </div>
+              <div className="mt-1 text-right font-mono text-[10px] font-bold text-smoke">
+                {skill.score}%
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
