@@ -13,6 +13,7 @@ LLM-backed bank (Gemini or Groq) can replace the static one without
 changing the director's logic.
 """
 
+import random
 import types
 from uuid import UUID
 
@@ -130,17 +131,29 @@ class InterviewDirector:
         prev_competency: str | None = None,
     ) -> str:
         """Build a natural, human-sounding interviewer transition bridge."""
+        rng = random.Random(
+            _session_seed(state.sessionId) + len(state.conversationHistory)
+        )
+
         if not is_followup and prev_competency and prev_competency != competency:
             transitions = [
                 f"Great overview on {prev_competency}! Pivoting now to {competency}:",
-                f"Thanks for walking me through your approach to {prev_competency}. Let me shift gears to {competency}:",
+                f"Thanks for walking me through your approach to {prev_competency}. Let's shift gears to {competency}:",
                 f"That makes sense regarding {prev_competency}. Moving on to our next topic, {competency}:",
+                f"Next up, I'd like to explore {competency}:",
+                f"Switching topics to {competency}:",
+                f"Let's talk about {competency}:",
             ]
-            return transitions[hash(competency) % len(transitions)]
+            return rng.choice(transitions)
 
         answer = state.currentAnswer.strip() if state.currentAnswer else ""
         if not answer or len(answer) < 10 or "don't know" in answer.lower():
-            return f"No worries at all—let's reframe this for {competency}:"
+            brief_openers = [
+                f"No worries at all—let me reframe this for {competency}:",
+                f"That's completely fine. Let's look at {competency} from another angle:",
+                f"Understood! Let's explore {competency} with a fresh scenario:",
+            ]
+            return rng.choice(brief_openers)
 
         latest_eval = (
             state.evidenceEvaluations[-1]
@@ -153,7 +166,15 @@ class InterviewDirector:
                 "shows" in s.lower() or "reasoning" in s.lower() or "knowledge" in s.lower()
                 for s in latest_eval.strengths
             ):
-                return f"Good point on that implementation detail! Building on your response for {competency}:"
+                strength_openers = [
+                    f"Good point on that implementation detail! Building on your response for {competency}:",
+                    f"Solid explanation. Taking that a step further for {competency}:",
+                    f"Makes total sense. Expanding on your point:",
+                    f"That's a helpful perspective. Following up on that:",
+                    "",  # Direct question with no prefix
+                ]
+                return rng.choice(strength_openers)
+
             if latest_eval.gaps:
                 gap = (
                     latest_eval.gaps[0]
@@ -162,21 +183,28 @@ class InterviewDirector:
                     .strip()
                 )
                 if gap and not gap.lower().startswith("evidence for"):
-                    return f"I see where you're coming from. Probing a bit deeper into {gap}:"
+                    gap_openers = [
+                        f"Got it. Focusing on {gap}:",
+                        f"Makes sense. Looking closely at {gap}:",
+                        f"Understood. Digging into {gap} for a moment:",
+                        f"Fair point. Taking a closer look at {gap}:",
+                        f"That's helpful context. On the topic of {gap}:",
+                        f"Interesting approach. Probing a bit into {gap}:",
+                        "",  # Direct question with no prefix
+                    ]
+                    return rng.choice(gap_openers)
 
-        return f"That makes sense. Probing a bit deeper into {competency}:"
+        general_openers = [
+            f"Got it. Following up on {competency}:",
+            f"Makes sense. Probing a bit deeper:",
+            f"Understood. Building on that:",
+            f"Right. Taking a closer look at {competency}:",
+            "",  # Direct question with no prefix
+        ]
+        return rng.choice(general_openers)
 
     def _next_question_for(self, state: InterviewState, competency: str) -> str:
-        """Return the next unasked question from the bank for a competency.
-
-        Scenario questions are scanned starting from a deterministic
-        offset derived from the session id, wrapping around the list, and
-        the first question not already asked in the session is returned.
-        A session always follows the same ordering (same seed -> same
-        result), while different session ids normally open a competency
-        with different questions. Once every bank question has been asked,
-        the existing deterministic fallback exhaustion applies.
-        """
+        """Return the next unasked question from the bank for a competency."""
         questions = self._question_bank.questions_for(competency, state)
         if questions:
             offset = _session_seed(state.sessionId) % len(questions)
@@ -184,14 +212,15 @@ class InterviewDirector:
             for question in ordered:
                 if not QuestionBank._is_asked_question(question, state):
                     return question
+
+        return self._fallback_question(competency, state)
+
+    def _fallback_question(self, competency: str, state: InterviewState) -> str:
+        """Return a deterministic fallback question when the bank is spent."""
         for question in self._fallback_questions(competency):
             if not QuestionBank._is_asked_question(question, state):
                 return question
-        return self._fallback_questions(competency)[0]
-
-    def _fallback_question(self, competency: str) -> str:
-        """Return the primary deterministic fallback question for a competency."""
-        return self._fallback_questions(competency)[0]
+        return f"Tell me more about your technical experience with {competency}."
 
     def _fallback_questions(self, competency: str) -> list[str]:
         """Return deterministic fallback questions for a competency."""
@@ -212,14 +241,30 @@ class InterviewDirector:
         """Begin an interview for the session."""
         profile = self._candidate_service.get_candidate(state.candidateId)
         summary = self._candidate_service.get_candidate_summary(state.candidateId)
-
         competency = self._resolve_competency(state) or "technicalKnowledge"
-        welcome = (
-            f"Welcome, {profile.member.name}! Thanks for taking the time to speak with me today. "
-            f"Looking at your background as a {summary.jobRole} with {summary.yearsExperience} years of experience, "
-            f"I'm excited to explore your technical work from the AI cohort. "
-            f"To kick things off, let's start with {competency}:"
-        )
+
+        rng = random.Random(_session_seed(state.sessionId))
+        welcome_templates = [
+            (
+                f"Welcome, {profile.member.name}! Thanks for taking the time to speak with me today. "
+                f"Looking at your background as a {summary.jobRole} with {summary.yearsExperience} years of experience, "
+                f"I'm excited to explore your technical work from the AI cohort. "
+                f"To kick things off, let's start with {competency}:"
+            ),
+            (
+                f"Hi {profile.member.name}, great to meet you! "
+                f"Given your hands-on role as a {summary.jobRole} with {summary.yearsExperience} years of experience, "
+                f"I'm looking forward to our technical discussion today. "
+                f"Let me begin by asking you about {competency}:"
+            ),
+            (
+                f"Welcome, {profile.member.name}! "
+                f"With {summary.yearsExperience} years of experience in {summary.jobRole} roles, "
+                f"I'd love to dive into some realistic technical scenarios from your cohort journey. "
+                f"First up, let's discuss {competency}:"
+            ),
+        ]
+        welcome = rng.choice(welcome_templates)
         question = self._next_question_for(state, competency)
 
         self._announce(state, welcome)
