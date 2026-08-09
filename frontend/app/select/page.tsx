@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Dices, FileWarning } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Dices, FileWarning, UserCheck, Users } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Box from '@/components/ui/Box';
 import Reveal from '@/components/ui/Reveal';
@@ -14,43 +14,44 @@ import { cn } from '@/lib/utils';
 type Level = CandidateInfo['experienceLevel'];
 type Mode = CandidateInfo['companyMode'];
 
-const PRESETS: {
+export interface CandidateOption {
   id: string;
   name: string;
   role: string;
+  years: number;
   level: Level;
-  mode: Mode;
-  initials: string;
-  bg: string;
-}[] = [
-  {
-    id: 'CAND-001',
-    name: 'Sarah Johnson',
-    role: 'Senior Data Engineer',
-    level: 'Senior',
-    mode: 'Startup (Fast & Scrappy)',
-    initials: 'SJ',
-    bg: 'bg-acid',
-  },
-  {
-    id: 'CAND-002',
-    name: 'Alex Turner',
-    role: 'Backend Software Engineer',
-    level: 'Mid-Level',
-    mode: 'OpenAI (AI Architecture & Math)',
-    initials: 'AT',
-    bg: 'bg-hot text-paper',
-  },
-  {
-    id: 'CAND-003',
-    name: 'Emily Chen',
-    role: 'AI Engineer',
-    level: 'Senior',
-    mode: 'Google (Algorithms & Scale)',
-    initials: 'EC',
-    bg: 'bg-cobalt text-paper',
-  },
+  education: string;
+  bg?: string;
+  initials?: string;
+}
+
+const COHORT_CANDIDATES: CandidateOption[] = [
+  { id: 'CAND-001', name: 'Sarah Johnson', role: 'Senior Data Engineer', years: 9, level: 'Senior', education: 'MS Computer Science', bg: 'bg-acid', initials: 'SJ' },
+  { id: 'CAND-002', name: 'Alex Turner', role: 'Backend Software Engineer', years: 5, level: 'Mid-Level', education: 'B.Tech Computer Science', bg: 'bg-hot text-paper', initials: 'AT' },
+  { id: 'CAND-003', name: 'Emily Chen', role: 'AI Engineer', years: 6, level: 'Senior', education: 'MS Artificial Intelligence', bg: 'bg-cobalt text-paper', initials: 'EC' },
+  { id: 'CAND-004', name: 'David Miller', role: 'Business Analyst', years: 8, level: 'Lead / Principal', education: 'MBA', bg: 'bg-sun', initials: 'DM' },
+  { id: 'CAND-005', name: 'Michael Brown', role: 'DevOps Engineer', years: 10, level: 'Lead / Principal', education: 'B.Tech Information Technology', bg: 'bg-mint', initials: 'MB' },
+  { id: 'CAND-006', name: 'Wendy Foster', role: 'Marketing Manager', years: 12, level: 'Lead / Principal', education: 'BA Marketing', bg: 'bg-sand', initials: 'WF' },
+  { id: 'CAND-007', name: 'Ethan Brooks', role: 'Computer Science Intern', years: 0, level: 'Junior', education: 'BS Computer Science (in progress)', bg: 'bg-acid', initials: 'EB' },
+  { id: 'CAND-008', name: 'Harold Whitfield', role: 'Distinguished Engineer', years: 28, level: 'Lead / Principal', education: 'BS Computer Science', bg: 'bg-cobalt text-paper', initials: 'HW' },
+  { id: 'CAND-009', name: 'Zara Ahmadi', role: 'AI Engineer', years: 1, level: 'Junior', education: 'BS Computer Science', bg: 'bg-mint', initials: 'ZA' },
+  { id: 'CAND-010', name: 'Gerald Combs', role: 'IT Support Specialist', years: 20, level: 'Lead / Principal', education: 'AAS Information Technology', bg: 'bg-sun', initials: 'GC' },
+  { id: 'CAND-011', name: 'Mia Alvarez', role: 'UX Researcher', years: 6, level: 'Senior', education: 'MA Human-Computer Interaction', bg: 'bg-violetPop text-paper', initials: 'MA' },
+  { id: 'CAND-012', name: 'Chen Wei', role: 'Mobile App Developer', years: 7, level: 'Senior', education: 'BS Computer Engineering', bg: 'bg-acid', initials: 'CW' },
+  { id: 'CAND-013', name: 'Ravi Patel', role: 'Software Engineer', years: 15, level: 'Lead / Principal', education: 'MS Computer Science', bg: 'bg-mint', initials: 'RP' },
+  { id: 'CAND-014', name: 'Bethany Cole', role: 'HR Manager', years: 10, level: 'Lead / Principal', education: 'BA Human Resources', bg: 'bg-sun', initials: 'BC' },
+  { id: 'CAND-015', name: 'Noah Kim', role: 'Principal Architect', years: 20, level: 'Lead / Principal', education: 'MS Computer Science', bg: 'bg-cobalt text-paper', initials: 'NK' },
+  { id: 'CAND-016', name: 'Isabella Rossi', role: 'Software Engineer', years: 5, level: 'Mid-Level', education: 'BS Computer Science', bg: 'bg-hot text-paper', initials: 'IR' },
+  { id: 'CAND-017', name: 'Tyler Brooks', role: 'Junior Developer', years: 0, level: 'Junior', education: 'GED + Coding Bootcamp Certificate', bg: 'bg-acid', initials: 'TB' },
+  { id: 'CAND-018', name: 'Diane Foster', role: 'AI Engineer', years: 4, level: 'Mid-Level', education: 'MS Computer Science', bg: 'bg-mint', initials: 'DF' },
+  { id: 'CAND-019', name: 'Frank DeLuca', role: 'Legacy Systems Engineer', years: 25, level: 'Lead / Principal', education: 'BS Computer Science', bg: 'bg-sand', initials: 'FD' },
+  { id: 'CAND-020', name: 'Priyanka Sharma', role: 'Software Engineer', years: 5, level: 'Mid-Level', education: 'BS Computer Science', bg: 'bg-sun', initials: 'PS' },
 ];
+
+const PRESETS = COHORT_CANDIDATES.slice(0, 3).map((c) => ({
+  ...c,
+  mode: 'Startup (Fast & Scrappy)' as Mode,
+}));
 
 const LEVELS: { value: Level; label: string; yrs: string }[] = [
   { value: 'Junior', label: 'JUNIOR', yrs: '0–2' },
@@ -110,19 +111,19 @@ export default function CandidateSelectionPage() {
     router.push('/interview');
   };
 
-  const applyPreset = (p: (typeof PRESETS)[number]) => {
-    setForm({
-      candidateId: p.id,
-      name: p.name,
-      targetRole: p.role,
-      experienceLevel: p.level,
-      companyMode: p.mode,
-    });
+  const applyCandidateOption = (c: CandidateOption) => {
+    setForm((prev) => ({
+      ...prev,
+      candidateId: c.id,
+      name: c.name,
+      targetRole: c.role,
+      experienceLevel: c.level,
+    }));
   };
 
   const randomise = () => {
-    const p = PRESETS[Math.floor(Math.random() * PRESETS.length)];
-    applyPreset(p);
+    const c = COHORT_CANDIDATES[Math.floor(Math.random() * COHORT_CANDIDATES.length)];
+    applyCandidateOption(c);
   };
 
   const selectedMode = MODES.find((m) => m.value === form.companyMode) ?? MODES[0];
@@ -178,7 +179,7 @@ export default function CandidateSelectionPage() {
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => applyPreset(p)}
+                        onClick={() => applyCandidateOption(p)}
                         aria-pressed={active}
                         className={cn(
                           'group relative border-3 border-ink p-4 text-left transition-all duration-150',
@@ -222,6 +223,39 @@ export default function CandidateSelectionPage() {
             <Reveal delay={0.08}>
               <Box shadow="lg" as="section" className="p-5 sm:p-7">
                 <form onSubmit={handleSubmit} className="space-y-7">
+                  {/* Candidate Dropdown Menu */}
+                  <div>
+                    <label htmlFor="candidate-dropdown" className="label mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="h-4 w-4 text-hot" strokeWidth={3} />
+                        SELECT CANDIDATE FROM COHORT
+                      </span>
+                      <span className="font-mono text-[10px] font-bold text-smoke">
+                        {COHORT_CANDIDATES.length} PROFILES LOADED
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="candidate-dropdown"
+                        value={form.candidateId}
+                        onChange={(e) => {
+                          const found = COHORT_CANDIDATES.find((c) => c.id === e.target.value);
+                          if (found) applyCandidateOption(found);
+                        }}
+                        className="field w-full cursor-pointer appearance-none border-3 border-ink bg-acid py-3.5 pl-4 pr-10 font-mono text-sm font-bold text-ink shadow-brutal transition-colors hover:bg-sun focus:bg-paper"
+                      >
+                        {COHORT_CANDIDATES.map((c) => (
+                          <option key={c.id} value={c.id} className="bg-paper font-sans text-ink">
+                            [{c.id}] {c.name} — {c.role} ({c.years} yrs exp)
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-ink">
+                        <ChevronDown className="h-5 w-5 stroke-[3]" />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid gap-5 sm:grid-cols-2">
                     <div>
                       <label htmlFor="cid" className="label mb-2 block w-fit">
