@@ -9,7 +9,7 @@ exclusively through this service.
 
 import threading
 from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_DNS, UUID, uuid4, uuid5
 
 from models.interview_state import (
     CompetencyState,
@@ -40,6 +40,16 @@ class SessionService:
         self._lock = threading.RLock()
 
     @staticmethod
+    def _to_uuid(session_id: UUID | str) -> UUID:
+        """Coerce a UUID or string session id to a deterministic valid UUID."""
+        if isinstance(session_id, UUID):
+            return session_id
+        try:
+            return UUID(session_id)
+        except (ValueError, AttributeError):
+            return uuid5(NAMESPACE_DNS, str(session_id))
+
+    @staticmethod
     def _touch(state: InterviewState, interaction: bool = False) -> None:
         """Refresh the session's ``updatedAt`` (and ``lastInteractionAt``)."""
         now = _utc_now()
@@ -47,15 +57,14 @@ class SessionService:
         if interaction:
             state.metadata.lastInteractionAt = now
 
-    def create_session(self, candidateId: str) -> InterviewState:
-        """Create and store a new interview session for a candidate.
-
-        Generates a fresh UUID session id and returns the initial
-        ``InterviewState``.
-        """
+    def create_session(
+        self, candidateId: str, sessionId: UUID | str | None = None
+    ) -> InterviewState:
+        """Create and store a new interview session for a candidate."""
         now = _utc_now()
+        sid: UUID | str = sessionId if sessionId is not None else uuid4()
         state = InterviewState(
-            sessionId=uuid4(),
+            sessionId=sid,
             candidateId=candidateId,
             createdAt=now,
             updatedAt=now,
@@ -63,26 +72,35 @@ class SessionService:
         state.metadata.startedAt = now
         state.metadata.lastInteractionAt = now
         with self._lock:
-            self._sessions[state.sessionId] = state
+            self._sessions[str(sid)] = state
+            key_uuid = str(self._to_uuid(sid))
+            self._sessions[key_uuid] = state
         return state
 
-    def get_session(self, sessionId: UUID) -> InterviewState:
+    def get_session(self, sessionId: UUID | str) -> InterviewState:
         """Return the stored session for ``sessionId``.
 
         Raises ``SessionNotFoundError`` if the session does not exist.
         """
         with self._lock:
-            try:
-                return self._sessions[sessionId]
-            except KeyError as exc:
-                raise SessionNotFoundError(f"Session not found: {sessionId}") from exc
+            key_str = str(sessionId)
+            if key_str in self._sessions:
+                return self._sessions[key_str]
+            key_uuid = str(self._to_uuid(sessionId))
+            if key_uuid in self._sessions:
+                return self._sessions[key_uuid]
+            raise SessionNotFoundError(f"Session not found: {sessionId}")
 
     def update_session(self, state: InterviewState) -> InterviewState:
         """Persist the given session, refreshing its ``updatedAt``."""
         self._touch(state)
         with self._lock:
-            self._sessions[state.sessionId] = state
+            self._sessions[str(state.sessionId)] = state
+            key_uuid = str(self._to_uuid(state.sessionId))
+            self._sessions[key_uuid] = state
         return state
+
+
 
     def delete_session(self, sessionId: UUID) -> None:
         """Remove the session from the store.

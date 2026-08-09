@@ -38,10 +38,18 @@ export interface CompetencyState {
 
 export type InterviewStage = 'initialized' | 'interviewing' | 'evaluating' | 'completed';
 
+export interface FeedbackData {
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+  next: string[];
+}
+
 export interface InterviewTurnResponse {
   sessionId: string;
   questionId: string;
   question: string;
+  reply?: string;
   currentCompetency: string | null;
   interviewStage: InterviewStage;
   evidence: EvidenceEvaluation | null;
@@ -49,7 +57,9 @@ export interface InterviewTurnResponse {
   hiringConfidence: number | null;
   interviewDNA: InterviewDNA | null;
   done: boolean;
+  feedback?: FeedbackData;
 }
+
 
 export type ConversationRole = 'system' | 'interviewer' | 'candidate' | 'evaluator';
 

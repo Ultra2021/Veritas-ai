@@ -40,7 +40,7 @@ from agents.interview_director import (
     InterviewDirector,
 )
 from models.evidence import EvidenceEvaluation
-from models.interview_response import InterviewTurnResponse
+from models.interview_response import FeedbackData, InterviewTurnResponse
 from models.interview_state import CompetencyState, InterviewState
 from services.curriculum_service import CurriculumDayNotFoundError, CurriculumService
 from services.session_service import SessionService
@@ -107,7 +107,9 @@ class InterviewService:
         self._director = director
         self._evidence_engine = evidence_engine
 
-    def start_interview(self, candidate_id: str) -> InterviewTurnResponse:
+    def start_interview(
+        self, candidate_id: str, session_id: UUID | str | None = None
+    ) -> InterviewTurnResponse:
         """Begin an interview for a candidate and return the first turn.
 
         Validates the candidate, creates the session, seeds the competency
@@ -116,12 +118,14 @@ class InterviewService:
         """
         self._candidate_service.get_candidate(candidate_id)
 
-        state = self._session_service.create_session(candidate_id)
+        state = self._session_service.create_session(candidate_id, sessionId=session_id)
         self._seed_competencies(state, candidate_id)
         self._director.start_interview(state)
         self._session_service.update_session(state)
 
         return self._build_response(state)
+
+
 
     def _seed_competencies(self, state: InterviewState, candidate_id: str) -> None:
         """Seed the competency ledger from the candidate's curriculum topics.
@@ -298,23 +302,79 @@ class InterviewService:
         if not answer or not answer.strip():
             raise EmptyAnswerError("Candidate answer must not be empty.")
 
+    def _build_feedback(self, state: InterviewState) -> FeedbackData:
+        """Build structured feedback per technical-spec.md upon interview completion."""
+        strengths: list[str] = []
+        gaps: list[str] = []
+        next_steps: list[str] = []
+
+        for eval_item in state.evidenceEvaluations:
+            for s in eval_item.strengths:
+                if s and s not in strengths:
+                    strengths.append(s)
+            for g in eval_item.gaps:
+                if g and g not in gaps:
+                    gaps.append(g)
+
+        verified_comps = [c for c in state.competencies if c.status == "verified"]
+        pending_comps = [c for c in state.competencies if c.status != "verified"]
+
+        if not strengths:
+            for c in verified_comps:
+                strengths.append(f"Verified competency: {c.competency}")
+        if not strengths:
+            strengths.append("Demonstrated foundational technical knowledge across cohort topics.")
+
+        if not gaps:
+            for c in pending_comps:
+                gaps.append(f"Requires deeper evidence: {c.competency}")
+        if not gaps:
+            gaps.append("Maintain architectural depth and edge-case handling in responses.")
+
+        for c in pending_comps[:3]:
+            next_steps.append(f"Review hands-on implementation and system design for {c.competency}.")
+        if not next_steps:
+            next_steps.append("Advance to production system deployment, observability, and scaling.")
+
+        questions_count = self._questions_presented(state)
+        confidence = state.hiringConfidence if state.hiringConfidence is not None else 70
+        summary = (
+            f"Candidate completed {questions_count} interview turn(s) across the 31-day AI Cohort curriculum. "
+            f"Verified {len(verified_comps)} of {len(state.competencies)} targeted competencies with a hiring confidence score of {confidence}%."
+        )
+
+        return FeedbackData(
+            summary=summary,
+            strengths=strengths[:5],
+            gaps=gaps[:5],
+            next=next_steps[:5],
+        )
+
     def _build_response(
         self,
         state: InterviewState,
         evidence: EvidenceEvaluation | None = None,
     ) -> InterviewTurnResponse:
-        """Build the frontend-facing response from the shared state."""
+        """Build the frontend & spec-facing response from the shared state."""
         if evidence is None and state.evidenceEvaluations:
             evidence = state.evidenceEvaluations[-1]
+
+        done = state.completed
+        reply = "Interview completed." if done and not state.currentQuestion else state.currentQuestion
+        feedback = self._build_feedback(state) if done else None
+
         return InterviewTurnResponse(
             sessionId=state.sessionId,
             questionId=state.currentQuestionId,
             question=state.currentQuestion,
+            reply=reply,
             currentCompetency=state.currentCompetency,
             interviewStage=state.interviewStage,
             evidence=evidence,
             competencies=state.competencies,
             hiringConfidence=state.hiringConfidence,
             interviewDNA=state.interviewDNA,
-            done=state.completed,
+            done=done,
+            feedback=feedback,
         )
+

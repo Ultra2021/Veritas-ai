@@ -170,32 +170,80 @@ def _build_targeted_fallback(competency: str, gap: str, candidate_answer: str | 
             break
 
     # Domain-specific clean technical questions
+    idx = (attempt - 1) % 3
+
+    # Domain-specific clean technical questions
     if "security" in gap_lower or "secret" in gap_lower:
-        return f"How would you secure the container and manage secrets when deploying {competency} to production?"
+        vars = [
+            f"How would you secure the container and manage secrets when deploying {competency} to production?",
+            f"What access control and key management strategies would you enforce for {competency}?",
+            f"How would you audit security and detect unauthorized access in {competency}?",
+        ]
+        return vars[idx]
 
     if "orchestrat" in gap_lower or "scaling" in gap_lower or "kubernetes" in gap_lower:
-        return f"How would you deploy and scale this application on Kubernetes using {competency}?"
+        vars = [
+            f"How would you deploy and scale this application on Kubernetes using {competency}?",
+            f"What resource limits and autoscaling policies would you configure for {competency}?",
+            f"How would you handle rolling updates and zero-downtime deployments for {competency}?",
+        ]
+        return vars[idx]
 
     if "multi-stage" in gap_lower or "optimization" in gap_lower or "image size" in gap_lower:
-        return f"How would you structure a multi-stage build to optimize image size and build caching for {competency}?"
+        vars = [
+            f"How would you structure a multi-stage build to optimize image size and build caching for {competency}?",
+            f"What techniques would you use to minimize runtime dependencies and image vulnerabilities for {competency}?",
+            f"How would you optimize build speed and container layer caching for {competency}?",
+        ]
+        return vars[idx]
 
     if "failure" in gap_lower or "unavailable" in gap_lower or "fallback" in gap_lower:
-        return f"How would your system behave if the underlying services or servers for {competency} became unavailable during a request?"
+        vars = [
+            f"How would your system behave if the underlying services or servers for {competency} became unavailable during a request?",
+            f"What retry strategies and circuit breakers would you configure for {competency}?",
+            f"How would you gracefully degrade functionality when external APIs fail in {competency}?",
+        ]
+        return vars[idx]
 
     if "version" in gap_lower or "compatibility" in gap_lower:
-        return f"How would you maintain compatibility between different client and server versions for {competency}?"
+        vars = [
+            f"How would you maintain compatibility between different client and server versions for {competency}?",
+            f"What schema migration strategy would you use when updating {competency}?",
+            f"How would you run contract tests to ensure API compatibility for {competency}?",
+        ]
+        return vars[idx]
 
     if "hybrid" in gap_lower or "rerank" in gap_lower:
-        return f"How would you implement hybrid retrieval and reranking to optimize search quality for {competency}?"
+        vars = [
+            f"How would you implement hybrid retrieval and reranking to optimize search quality for {competency}?",
+            f"What trade-offs exist between lexical search and dense vector retrieval when implementing {competency}?",
+            f"How would you measure the latency and quality impact of reranking for {competency}?",
+        ]
+        return vars[idx]
 
     if "metric" in gap_lower or "benchmark" in gap_lower or "distance" in gap_lower:
-        return f"How would you select the distance metric and benchmark retrieval quality for {competency}?"
+        vars = [
+            f"How would you select the distance metric and benchmark retrieval quality for {competency}?",
+            f"What specific evaluation metrics would you use to measure search precision and recall for {competency}?",
+            f"How would you run automated benchmark testing to compare distance functions for {competency}?",
+        ]
+        return vars[idx]
 
     if "injection" in gap_lower or "sanitiz" in gap_lower or "guardrail" in gap_lower:
-        return f"How would you implement input sanitization and guardrails to protect {competency} against prompt injection?"
+        vars = [
+            f"How would you implement input sanitization and guardrails to protect {competency} against prompt injection?",
+            f"What techniques would you use to detect and block adversarial prompts in {competency}?",
+            f"How would you test guardrails to ensure they do not break legitimate user inputs in {competency}?",
+        ]
+        return vars[idx]
 
     if "invalidation" in gap_lower or "stale" in gap_lower:
-        return f"How would you handle cache invalidation and stale data updates when using {competency}?"
+        vars = [
+            f"How would you handle cache invalidation and stale data updates when using {competency}?",
+            f"What TTL and cache eviction policies would you configure for {competency}?",
+            f"How would you keep cache data synchronized with the primary datastore for {competency}?",
+        ]
+        return vars[idx]
 
     # Varied, natural question patterns for any generic or custom technical gap
     patterns = [
@@ -206,6 +254,7 @@ def _build_targeted_fallback(competency: str, gap: str, candidate_answer: str | 
         f"How do you weigh latency, cost, and reliability trade-offs for {gap_clean} in {competency}?",
     ]
     return patterns[(attempt - 1) % len(patterns)]
+
 
 
 class QuestionBank(ABC):

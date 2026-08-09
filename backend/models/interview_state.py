@@ -87,7 +87,8 @@ class InterviewState(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    sessionId: UUID
+    sessionId: UUID | str
+
     candidateId: str
     currentCompetency: str | None = None
     currentQuestionId: str = ""

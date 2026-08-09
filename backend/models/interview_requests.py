@@ -24,7 +24,7 @@ class AnswerRequest(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    sessionId: UUID = Field(
+    sessionId: UUID | str = Field(
         description="Identifier of the active interview session.",
     )
     answer: str = Field(
@@ -38,7 +38,34 @@ class EndInterviewRequest(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    sessionId: UUID = Field(
+    sessionId: UUID | str = Field(
         description="Identifier of the active interview session to terminate early.",
     )
+
+
+class SpecInterviewRequest(BaseModel):
+    """Unified request body for ``POST /api/interview`` per technical-spec.md."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    sessionId: UUID | str = Field(
+        description="Session identifier (UUID or arbitrary string like 'abc-123').",
+    )
+    candidate: dict | str | None = Field(
+        default=None,
+        description="Candidate object or candidate ID for session initialization.",
+    )
+    candidateId: str | None = Field(
+        default=None,
+        description="Candidate identifier string.",
+    )
+    message: str | None = Field(
+        default=None,
+        description="Candidate answer message per technical spec.",
+    )
+    answer: str | None = Field(
+        default=None,
+        description="Candidate answer text.",
+    )
+
 

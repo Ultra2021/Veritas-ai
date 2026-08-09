@@ -14,6 +14,7 @@ changing the director's logic.
 """
 
 import types
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -30,6 +31,16 @@ MAX_FOLLOWUPS_PER_COMPETENCY = 2
 MIN_DISTINCT_CURRICULUM_DAYS = 4
 MIN_QUESTIONS_TO_COMPLETE = 8
 MAX_QUESTIONS_TO_COMPLETE = 20
+
+
+def _session_seed(session_id: UUID | str) -> int:
+    """Safely convert a UUID or string session ID into a deterministic seed integer."""
+    if isinstance(session_id, UUID):
+        return int(session_id)
+    try:
+        return int(UUID(str(session_id)))
+    except Exception:
+        return sum(ord(c) for c in str(session_id))
 
 
 class FollowUpExhaustedError(ValueError):
@@ -53,6 +64,7 @@ class InterviewResponse(BaseModel):
 
 
 class InterviewDirector:
+
     """Conducts interviews by sourcing questions from a QuestionBank."""
 
     def __init__(
@@ -118,7 +130,7 @@ class InterviewDirector:
         """
         questions = self._question_bank.questions_for(competency, state)
         if questions:
-            offset = int(state.sessionId) % len(questions)
+            offset = _session_seed(state.sessionId) % len(questions)
             ordered = questions[offset:] + questions[:offset]
             for question in ordered:
                 if not QuestionBank._is_asked_question(question, state):
@@ -289,9 +301,11 @@ class InterviewDirector:
                 )
             )
             if not covered and len(matches) > 1:
-                offset = int(state.sessionId) % len(matches)
+                offset = _session_seed(state.sessionId) % len(matches)
                 matches = matches[offset:] + matches[:offset]
             return matches[0]
+
+
         return None
 
     def _resolve_competency(self, state: InterviewState) -> str | None:

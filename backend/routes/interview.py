@@ -24,7 +24,13 @@ from agents.evidence_engine import (
 )
 from agents.interview_director import InterviewDirector
 from agents.question_bank import GeminiQuestionBank, LLMQuestionBank
-from models.interview_requests import AnswerRequest, EndInterviewRequest, StartInterviewRequest
+from models.interview_requests import (
+    AnswerRequest,
+    EndInterviewRequest,
+    SpecInterviewRequest,
+    StartInterviewRequest,
+)
+
 from models.interview_response import InterviewTurnResponse
 from models.interview_state import InterviewState
 from services.curriculum_service import CurriculumService
@@ -190,4 +196,53 @@ def end_interview(
 ) -> InterviewTurnResponse:
     """End an active interview session early."""
     return service.end_interview(payload.sessionId)
+
+
+@router.post(
+    "",
+    response_model=InterviewTurnResponse,
+    summary="Unified technical spec interview endpoint",
+    description="Implements POST /api/interview endpoint defined in Technical Specification.",
+)
+@router.post(
+    "/",
+    response_model=InterviewTurnResponse,
+    include_in_schema=False,
+)
+def spec_interview_turn(
+    payload: SpecInterviewRequest,
+    service: InterviewService = Depends(get_interview_service),
+    session_service: SessionService = Depends(get_session_service),
+) -> InterviewTurnResponse:
+    """Unified endpoint per technical-spec.md for both Start and Conversation Turn."""
+    session_exists = False
+    try:
+        session_service.get_session(payload.sessionId)
+        session_exists = True
+    except Exception:
+        session_exists = False
+
+    candidate_id = "CAND-001"
+    if isinstance(payload.candidate, dict):
+        candidate_id = (
+            payload.candidate.get("member", {}).get("id")
+            or payload.candidate.get("candidateId")
+            or payload.candidate.get("id")
+            or "CAND-001"
+        )
+    elif isinstance(payload.candidate, str):
+        candidate_id = payload.candidate
+    elif payload.candidateId:
+        candidate_id = payload.candidateId
+
+    if not session_exists or payload.candidate is not None:
+        return service.start_interview(candidate_id, session_id=payload.sessionId)
+
+    answer_text = payload.message or payload.answer or ""
+    if not answer_text.strip():
+        state = session_service.get_session(payload.sessionId)
+        return service._build_response(state)
+
+    return service.process_answer(payload.sessionId, answer_text)
+
 
