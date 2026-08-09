@@ -39,3 +39,13 @@ export async function getInterviewState(sessionId: string): Promise<InterviewSta
   const res = await api.get<InterviewState>(`/api/interview/${sessionId}`);
   return res.data;
 }
+
+/**
+ * End an active interview session early.
+ * POST /api/interview/end
+ */
+export async function endInterview(sessionId: string): Promise<InterviewTurnResponse> {
+  const res = await api.post<InterviewTurnResponse>('/api/interview/end', { sessionId });
+  return res.data;
+}
+

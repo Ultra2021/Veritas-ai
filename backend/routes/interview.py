@@ -24,7 +24,7 @@ from agents.evidence_engine import (
 )
 from agents.interview_director import InterviewDirector
 from agents.question_bank import GeminiQuestionBank, LLMQuestionBank
-from models.interview_requests import AnswerRequest, StartInterviewRequest
+from models.interview_requests import AnswerRequest, EndInterviewRequest, StartInterviewRequest
 from models.interview_response import InterviewTurnResponse
 from models.interview_state import InterviewState
 from services.curriculum_service import CurriculumService
@@ -33,6 +33,7 @@ from services.llm_provider import GroqProvider, LLMProvider
 from services.session_service import SessionService
 
 router = APIRouter(prefix="/api/interview", tags=["Interview"])
+
 
 _CURRICULUM_PATH = Path(__file__).resolve().parent.parent.parent / "curriculum.json"
 
@@ -169,3 +170,24 @@ def get_interview_state(
 ) -> InterviewState:
     """Return the stored InterviewState for a session."""
     return session_service.get_session(session_id)
+
+
+@router.post(
+    "/end",
+    response_model=InterviewTurnResponse,
+    summary="End an interview early",
+    description=(
+        "Marks the interview session as completed and calculates final hiring "
+        "confidence score based on the questions answered so far."
+    ),
+    responses={
+        404: {"description": "Session not found"},
+    },
+)
+def end_interview(
+    payload: EndInterviewRequest,
+    service: InterviewService = Depends(get_interview_service),
+) -> InterviewTurnResponse:
+    """End an active interview session early."""
+    return service.end_interview(payload.sessionId)
+

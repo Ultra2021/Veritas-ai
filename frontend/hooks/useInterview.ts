@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { startInterview, submitAnswer as apiSubmitAnswer, getInterviewState } from '../services/api';
+import { startInterview, submitAnswer as apiSubmitAnswer, getInterviewState, endInterview as apiEndInterview } from '../services/api';
 import {
   CandidateInfo,
   ChatMessage,
@@ -215,6 +215,39 @@ export function useInterview() {
     startSession(candidate.candidateId);
   };
 
+  const finishInterview = async (): Promise<InterviewTurnResponse | null> => {
+    if (!sessionId || isLoading) return null;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const turn = await apiEndInterview(sessionId);
+      setCurrentResponse(turn);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('veritas_current_response', JSON.stringify(turn));
+      }
+      return turn;
+    } catch (err: any) {
+      console.error('Ending interview failed:', err);
+      if (currentResponse) {
+        const fallbackTurn: InterviewTurnResponse = {
+          ...currentResponse,
+          done: true,
+          interviewStage: 'completed',
+        };
+        setCurrentResponse(fallbackTurn);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('veritas_current_response', JSON.stringify(fallbackTurn));
+        }
+        return fallbackTurn;
+      }
+      const msg = err.response?.data?.detail || err.message || 'Error ending interview session';
+      setError(msg);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Convert backend competencies array into detailed skill items for UI
   const getSkillDetails = (): SkillDetail[] => {
     if (!currentResponse || !currentResponse.competencies || currentResponse.competencies.length === 0) {
@@ -249,6 +282,7 @@ export function useInterview() {
     currentResponse,
     startSession,
     submitAnswer,
+    finishInterview,
     restartInterview,
     getSkillDetails,
   };

@@ -31,3 +31,14 @@ class AnswerRequest(BaseModel):
         min_length=1,
         description="The candidate's answer to the current question.",
     )
+
+
+class EndInterviewRequest(BaseModel):
+    """Request body for ``POST /api/interview/end``."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    sessionId: UUID = Field(
+        description="Identifier of the active interview session to terminate early.",
+    )
+

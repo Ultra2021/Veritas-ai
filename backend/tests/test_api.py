@@ -213,3 +213,16 @@ def test_cors_allows_configured_frontend_origin():
     )
     assert resp.status_code == 200
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+def test_end_interview_early_returns_200():
+    start_resp = client.post("/api/interview/start", json={"candidateId": "CAND-001"})
+    assert start_resp.status_code == 200
+    session_id = start_resp.json()["sessionId"]
+
+    end_resp = client.post("/api/interview/end", json={"sessionId": session_id})
+    assert end_resp.status_code == 200
+    body = end_resp.json()
+    assert body["done"] is True
+    assert body["interviewStage"] == "completed"
+

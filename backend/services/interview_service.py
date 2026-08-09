@@ -246,6 +246,15 @@ class InterviewService:
         self._session_service.update_session(state)
         return self._build_response(state, evidence=evaluation)
 
+    def end_interview(self, session_id: UUID) -> InterviewTurnResponse:
+        """End an active interview session early and mark it as completed."""
+        state = self._session_service.get_session(session_id)
+        if not state.completed:
+            self._evidence_engine.calculate_hiring_confidence(state)
+            self._session_service.mark_completed(session_id)
+            self._session_service.update_session(state)
+        return self._build_response(state)
+
     def _current_competency_state(
         self,
         state: InterviewState,

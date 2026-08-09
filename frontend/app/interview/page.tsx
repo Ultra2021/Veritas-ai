@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RotateCcw, AlertTriangle, ArrowRight, X, BarChart3 } from 'lucide-react';
+import { RotateCcw, AlertTriangle, ArrowRight, X, BarChart3, Square } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import ChatWindow from '@/components/ChatWindow';
 import AnswerInput from '@/components/AnswerInput';
@@ -31,17 +31,20 @@ export default function InterviewPage() {
     error,
     currentResponse,
     submitAnswer,
+    finishInterview,
     restartInterview,
     getSkillDetails,
   } = useInterview();
 
   const [tab, setTab] = useState<Tab>('score');
   const [panelOpen, setPanelOpen] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   const skills = getSkillDetails();
   const busy = isLoading || isStarting;
   const done = !!currentResponse?.done;
   const evidence = currentResponse?.evidence;
+
 
   const stats = useMemo(() => {
     const comps = currentResponse?.competencies ?? [];
@@ -216,7 +219,7 @@ export default function InterviewPage() {
               </p>
             </div>
 
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 onClick={() => setPanelOpen(true)}
                 className="flex items-center gap-1.5 border-3 border-paper bg-cobalt px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase lg:hidden"
@@ -224,6 +227,18 @@ export default function InterviewPage() {
                 <BarChart3 className="h-3.5 w-3.5" strokeWidth={3} />
                 STATS
               </button>
+              {!done && (
+                <button
+                  onClick={() => setShowEndConfirm(true)}
+                  disabled={busy}
+                  title="End Interview Early"
+                  aria-label="End Interview"
+                  className="flex items-center gap-1 border-3 border-paper bg-sun px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase text-ink transition-colors hover:bg-amber-400 disabled:opacity-50"
+                >
+                  <Square className="h-3 w-3 fill-current" strokeWidth={3} />
+                  <span>END</span>
+                </button>
+              )}
               <button
                 onClick={restartInterview}
                 title="Restart"
@@ -359,6 +374,62 @@ export default function InterviewPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ---------- end interview confirmation modal ---------- */}
+      <AnimatePresence>
+        {showEndConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="w-full max-w-md border-3 border-ink bg-paper shadow-brutal-lg"
+            >
+              <div className="flex items-center justify-between border-b-3 border-ink bg-blood px-4 py-3 text-paper">
+                <span className="flex items-center gap-2 font-display text-base uppercase">
+                  <AlertTriangle className="h-5 w-5" strokeWidth={3} />
+                  END INTERROGATION EARLY?
+                </span>
+                <button
+                  onClick={() => setShowEndConfirm(false)}
+                  aria-label="Close"
+                  className="border-2 border-paper p-1 hover:bg-paper hover:text-ink transition-colors"
+                >
+                  <X className="h-4 w-4" strokeWidth={3} />
+                </button>
+              </div>
+              <div className="space-y-4 p-5">
+                <p className="font-mono text-xs font-semibold leading-relaxed text-ink">
+                  Are you sure you want to stop the interview now? We will analyze the answers you have submitted so far and generate your final Verdict.
+                </p>
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                  <button
+                    onClick={() => setShowEndConfirm(false)}
+                    className="flex-1 border-3 border-ink bg-sand px-4 py-2.5 font-display text-sm uppercase text-ink hover:bg-paper transition-colors"
+                  >
+                    CONTINUE
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setShowEndConfirm(false);
+                      await finishInterview();
+                    }}
+                    className="flex-1 border-3 border-ink bg-blood px-4 py-2.5 font-display text-sm uppercase text-paper hover:bg-red-700 transition-colors shadow-brutal"
+                  >
+                    FINISH & SEE VERDICT
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
