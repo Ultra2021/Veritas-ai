@@ -2,396 +2,7 @@
 
 **Session ID:** ses_022d53da8ffe3bVD0jJc0NngiW
 **Created:** 8/7/2026, 10:29:54 PM
-**Updated:** 8/9/2026, 9:40:29 AM
-
----
-
-## Assistant (Build · Claude Opus 5 · 8.9s)
-
-`CornerDownLeft` is imported but unused. Removing it, then moving to the data-viz components.
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/noel/Noel/vibathon/frontend/components/AnswerInput.tsx",
-  "newString": "import { Send, Loader2, Sparkles, Terminal, Code2, Boxes } from 'lucide-react';",
-  "oldString": "import { Send, Loader2, Sparkles, Terminal, Code2, Boxes, CornerDownLeft } from 'lucide-react';"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · Claude Opus 5 · 11.4s)
-
-Now the remaining data-viz components. Let me read them together.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/noel/Noel/vibathon/frontend/components/EvidenceGraph.tsx"
-}
-```
-
-**Output:**
-```
-<path>/home/noel/Noel/vibathon/frontend/components/EvidenceGraph.tsx</path>
-<type>file</type>
-<content>
-1: 'use client';
-2: 
-3: import React from 'react';
-4: import { motion } from 'framer-motion';
-5: import { CheckCircle2, AlertCircle, HelpCircle, ShieldAlert, Cpu } from 'lucide-react';
-6: import { SkillStatus } from '../types/interview';
-7: 
-8: export interface EvidenceSkillItem {
-9:   name: string;
-10:   status: SkillStatus;
-11:   score: number; // 0-100
-12: }
-13: 
-14: interface EvidenceGraphProps {
-15:   skills: EvidenceSkillItem[];
-16:   currentSkill?: string;
-17: }
-18: 
-19: export default function EvidenceGraph({ skills, currentSkill }: EvidenceGraphProps) {
-20:   const getStatusBadge = (status: SkillStatus) => {
-21:     switch (status) {
-22:       case 'Verified':
-23:         return (
-24:           <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-25:             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-26:             Verified
-27:           </span>
-28:         );
-29:       case 'Partial':
-30:         return (
-31:           <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
-32:             <AlertCircle className="w-3 h-3 text-amber-400" />
-33:             Partial
-34:           </span>
-35:         );
-36:       case 'Needs More Evidence':
-37:       default:
-38:         return (
-39:           <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-800/80 border border-slate-700 px-2 py-0.5 rounded-full">
-40:             <HelpCircle className="w-3 h-3 text-slate-400" />
-41:             Needs Evidence
-42:           </span>
-43:         );
-44:     }
-45:   };
-46: 
-47:   const getBarColor = (status: SkillStatus) => {
-48:     switch (status) {
-49:       case 'Verified':
-50:         return 'from-emerald-500 to-cyan-400 shadow-emerald-500/30';
-51:       case 'Partial':
-52:         return 'from-amber-500 to-orange-400 shadow-amber-500/30';
-53:       case 'Needs More Evidence':
-54:       default:
-55:         return 'from-slate-600 to-slate-700';
-56:     }
-57:   };
-58: 
-59:   return (
-60:     <div className="glass-card rounded-2xl p-4 border border-white/10 shadow-xl space-y-4">
-61:       <div className="flex items-center justify-between border-b border-white/10 pb-3">
-62:         <div className="flex items-center gap-2">
-63:           <Cpu className="w-4 h-4 text-cyan-400" />
-64:           <h3 className="text-xs font-bold uppercase tracking-wider text-gray-200">
-65:             Live Evidence Graph
-66:           </h3>
-67:         </div>
-68:         <span className="text-[10px] text-gray-400 bg-slate-800 px-2 py-0.5 rounded-md font-mono">
-69:           {skills.filter((s) => s.status === 'Verified').length}/{skills.length} Verified
-70:         </span>
-71:       </div>
-72: 
-73:       {currentSkill && (
-74:         <div className="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs">
-75:           <span className="text-gray-400 font-medium">Active Evaluation:</span>
-76:           <span className="font-semibold text-cyan-300 animate-pulse">{currentSkill}</span>
-77:         </div>
-78:       )}
-79: 
-80:       <div className="space-y-3.5 pt-1">
-81:         {skills.map((skill, idx) => (
-82:           <div key={skill.name || idx} className="space-y-1.5">
-83:             <div className="flex items-center justify-between text-xs">
-84:               <span className="font-medium text-gray-200 flex items-center gap-1.5">
-85:                 {skill.name}
-86:               </span>
-87:               {getStatusBadge(skill.status)}
-88:             </div>
-89: 
-90:             {/* Custom ASCII style progress indicator preview + Smooth Framer Bar */}
-91:             <div className="relative w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden border border-white/5">
-92:               <motion.div
-93:                 initial={{ width: 0 }}
-94:                 animate={{ width: `${skill.score}%` }}
-95:                 transition={{ duration: 0.8, ease: 'easeOut' }}
-96:                 className={`h-full bg-gradient-to-r ${getBarColor(skill.status)} shadow-md rounded-full`}
-97:               />
-98:             </div>
-99:           </div>
-100:         ))}
-101:       </div>
-102:     </div>
-103:   );
-104: }
-
-(End of file - total 104 lines)
-</content>
-```
-
----
-
-## Assistant (Build · Claude Opus 5 · 31.6s)
-
-`EvidenceSkillItem` is exported and consumed elsewhere, so I'll preserve it exactly.
-
-**Tool: write**
-
-**Input:**
-```json
-{
-  "content": "'use client';\n\nimport React from 'react';\nimport { motion } from 'framer-motion';\nimport { CheckCircle2, AlertCircle, HelpCircle, Activity } from 'lucide-react';\nimport { SkillStatus } from '@/types/interview';\nimport { cn } from '@/lib/utils';\n\nexport interface EvidenceSkillItem {\n  name: string;\n  status: SkillStatus;\n  score: number; // 0-100\n}\n\ninterface EvidenceGraphProps {\n  skills: EvidenceSkillItem[];\n  currentSkill?: string;\n}\n\nconst STATUS_CONFIG: Record<\n  SkillStatus,\n  { label: string; icon: typeof CheckCircle2; chip: string; bar: string }\n> = {\n  Verified: {\n    label: 'Verified',\n    icon: CheckCircle2,\n    chip: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',\n    bar: 'from-emerald-500 to-accent-cyan',\n  },\n  Partial: {\n    label: 'Partial',\n    icon: AlertCircle,\n    chip: 'border-amber-400/30 bg-amber-500/10 text-amber-300',\n    bar: 'from-amber-500 to-orange-400',\n  },\n  'Needs More Evidence': {\n    label: 'Needs evidence',\n    icon: HelpCircle,\n    chip: 'border-white/10 bg-white/[0.05] text-ink-subtle',\n    bar: 'from-slate-600 to-slate-700',\n  },\n};\n\nexport default function EvidenceGraph({ skills, currentSkill }: EvidenceGraphProps) {\n  const verifiedCount = skills.filter((s) => s.status === 'Verified').length;\n  const total = skills.length;\n  const pct = total > 0 ? (verifiedCount / total) * 100 : 0;\n\n  return (\n    <div className=\"surface p-5\">\n      <div className=\"flex items-center justify-between border-b border-white/[0.07] pb-3\">\n        <div className=\"flex items-center gap-2\">\n          <Activity className=\"h-4 w-4 text-accent-cyan\" />\n          <h3 className=\"text-xs font-bold uppercase tracking-wider text-ink\">\n            Live Evidence Graph\n          </h3>\n        </div>\n        <span className=\"rounded-md border border-white/[0.07] bg-black/30 px-2 py-0.5 font-mono text-[10px] text-ink-muted\">\n          {verifiedCount}/{total} verified\n        </span>\n      </div>\n\n      {/* Aggregate progress */}\n      {total > 0 && (\n        <div className=\"mt-3 h-1 overflow-hidden rounded-full bg-white/[0.06]\">\n          <motion.div\n            className=\"h-full rounded-full bg-gradient-to-r from-brand-500 via-accent-cyan to-accent-emerald\"\n            initial={{ width: 0 }}\n            animate={{ width: `${pct}%` }}\n            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}\n          />\n        </div>\n      )}\n\n      {currentSkill && (\n        <motion.div\n          initial={{ opacity: 0, y: -6 }}\n          animate={{ opacity: 1, y: 0 }}\n          className=\"mt-4 flex items-center justify-between gap-3 rounded-2xl border border-brand-400/25 bg-brand-500/10 px-3 py-2.5\"\n        >\n          <span className=\"flex items-center gap-2 text-[11px] font-medium text-ink-muted\">\n            <span className=\"relative flex h-1.5 w-1.5\">\n              <span className=\"absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-cyan opacity-75\" />\n              <span className=\"relative inline-flex h-1.5 w-1.5 rounded-full bg-accent-cyan\" />\n            </span>\n            Active evaluation\n          </span>\n          <span className=\"truncate text-xs font-bold text-accent-cyan\">{currentSkill}</span>\n        </motion.div>\n      )}\n\n      <div className=\"mt-4 space-y-4\">\n        {skills.length === 0 && (\n          <p className=\"py-6 text-center text-xs text-ink-subtle\">\n            No competencies tracked yet.\n          </p>\n        )}\n\n        {skills.map((skill, idx) => {\n          const config = STATUS_CONFIG[skill.status] ?? STATUS_CONFIG['Needs More Evidence'];\n          const Icon = config.icon;\n          const isActive = currentSkill === skill.name;\n\n          return (\n            <div key={skill.name || idx} className=\"space-y-1.5\">\n              <div className=\"flex items-center justify-between gap-2\">\n                <span\n                  className={cn(\n                    'min-w-0 truncate text-xs font-medium',\n                    isActive ? 'text-white' : 'text-ink'\n                  )}\n                >\n                  {skill.name}\n                </span>\n                <span\n                  className={cn(\n                    'flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold',\n                    config.chip\n                  )}\n                >\n                  <Icon className=\"h-3 w-3\" />\n                  {config.label}\n                </span>\n              </div>\n\n              <div className=\"relative h-2 overflow-hidden rounded-full border border-white/[0.05] bg-black/40\">\n                <motion.div\n                  initial={{ width: 0 }}\n                  animate={{ width: `${Math.max(0, Math.min(100, skill.score))}%` }}\n                  transition={{ duration: 0.9, delay: idx * 0.05, ease: [0.16, 1, 0.3, 1] }}\n                  className={cn('h-full rounded-full bg-gradient-to-r', config.bar)}\n                />\n                {isActive && (\n                  <motion.div\n                    className=\"absolute inset-y-0 w-16 bg-white/20 blur-sm\"\n                    animate={{ x: ['-4rem', '100%'] }}\n                    transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}\n                  />\n                )}\n              </div>\n            </div>\n          );\n        })}\n      </div>\n    </div>\n  );\n}\n",
-  "filePath": "/home/noel/Noel/vibathon/frontend/components/EvidenceGraph.tsx"
-}
-```
-
-**Output:**
-```
-Wrote file successfully.
-```
-
----
-
-## Assistant (Build · Claude Opus 5 · 17.2s)
-
-Now HiringConfidence, refactored onto the shared ScoreRing.
-
-**Tool: write**
-
-**Input:**
-```json
-{
-  "content": "'use client';\n\nimport React from 'react';\nimport { motion } from 'framer-motion';\nimport { TrendingUp, ShieldCheck } from 'lucide-react';\nimport ScoreRing from './ui/ScoreRing';\nimport { cn } from '@/lib/utils';\n\ninterface HiringConfidenceProps {\n  confidence: number | null | undefined; // 0 - 100 or null/undefined\n}\n\nfunction getRecommendation(score: number | null | undefined) {\n  if (score === null || score === undefined) {\n    return {\n      label: 'COLLECTING EVIDENCE',\n      chip: 'border-white/10 bg-white/[0.05] text-ink-subtle',\n    };\n  }\n  if (score >= 85) {\n    return {\n      label: 'STRONG HIRE',\n      chip: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',\n    };\n  }\n  if (score >= 65) {\n    return { label: 'HIRE', chip: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-300' };\n  }\n  if (score >= 45) {\n    return {\n      label: 'LEANING HIRE',\n      chip: 'border-amber-400/30 bg-amber-500/10 text-amber-300',\n    };\n  }\n  return {\n    label: 'COLLECTING EVIDENCE',\n    chip: 'border-white/10 bg-white/[0.05] text-ink-subtle',\n  };\n}\n\nexport default function HiringConfidence({ confidence }: HiringConfidenceProps) {\n  const isAvailable = confidence !== null && confidence !== undefined;\n  const rec = getRecommendation(isAvailable ? confidence : null);\n\n  return (\n    <div className=\"surface p-5\">\n      <div className=\"flex items-center justify-between gap-2 border-b border-white/[0.07] pb-3\">\n        <div className=\"flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink\">\n          <TrendingUp className=\"h-4 w-4 text-brand-300\" />\n          Hiring Confidence\n        </div>\n        <motion.span\n          key={rec.label}\n          initial={{ opacity: 0, scale: 0.9 }}\n          animate={{ opacity: 1, scale: 1 }}\n          className={cn(\n            'shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-wide',\n            rec.chip\n          )}\n        >\n          {rec.label}\n        </motion.span>\n      </div>\n\n      <div className=\"flex justify-center py-5\">\n        <div className=\"relative\">\n          {isAvailable && (\n            <div\n              aria-hidden\n              className=\"absolute inset-0 -z-10 rounded-full bg-brand-500/20 blur-2xl\"\n            />\n          )}\n          <ScoreRing value={confidence} size={140} strokeWidth={10} />\n        </div>\n      </div>\n\n      <div className=\"flex items-center justify-center gap-2 rounded-2xl border border-white/[0.05] bg-black/30 px-3 py-2.5 text-xs text-ink-muted\">\n        <ShieldCheck className=\"h-4 w-4 shrink-0 text-accent-emerald\" />\n        Live evidence tracking\n      </div>\n    </div>\n  );\n}\n",
-  "filePath": "/home/noel/Noel/vibathon/frontend/components/HiringConfidence.tsx"
-}
-```
-
-**Output:**
-```
-Wrote file successfully.
-```
-
----
-
-## Assistant (Build · Claude Opus 5 · 9.8s)
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/noel/Noel/vibathon/frontend/components/InterviewDNA.tsx"
-}
-```
-
-**Output:**
-```
-<path>/home/noel/Noel/vibathon/frontend/components/InterviewDNA.tsx</path>
-<type>file</type>
-<content>
-1: 'use client';
-2: 
-3: import React from 'react';
-4: import {
-5:   Radar,
-6:   RadarChart,
-7:   PolarGrid,
-8:   PolarAngleAxis,
-9:   PolarRadiusAxis,
-10:   ResponsiveContainer,
-11:   Tooltip,
-12: } from 'recharts';
-13: import { InterviewDNA as InterviewDNAType } from '../types/interview';
-14: import { Dna } from 'lucide-react';
-15: 
-16: interface InterviewDNAProps {
-17:   dna: InterviewDNAType | null | undefined;
-18:   compact?: boolean;
-19: }
-20: 
-21: export default function InterviewDNA({ dna, compact = false }: InterviewDNAProps) {
-22:   if (!dna) {
-23:     return (
-24:       <div className={`glass-card rounded-2xl ${compact ? 'p-3.5' : 'p-6'} border border-white/10 shadow-xl space-y-3`}>
-25:         <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-26:           <div className="flex items-center gap-2">
-27:             <Dna className="w-4 h-4 text-violet-400" />
-28:             <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-bold uppercase tracking-wider text-gray-200`}>
-29:               Interview DNA Matrix
-30:             </h3>
-31:           </div>
-32:           <span className="text-[10px] text-violet-300 font-medium px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30">
-33:             5-Vector Analysis
-34:           </span>
-35:         </div>
-36:         <div className={`w-full ${compact ? 'h-36' : 'h-48'} flex items-center justify-center text-xs text-gray-400 italic text-center p-4`}>
-37:           Interview DNA Matrix data not yet available.
-38:         </div>
-39:       </div>
-40:     );
-41:   }
-42: 
-43:   const technical = dna.technicalKnowledge ?? 0;
-44:   const communication = dna.communication ?? 0;
-45:   const problemSolving = dna.problemSolving ?? 0;
-46:   const leadership = dna.leadership ?? 0;
-47:   const learning = dna.learningAbility ?? 0;
-48: 
-49:   const chartData = [
-50:     { axis: 'Technical Knowledge', value: technical, fullMark: 100 },
-51:     { axis: 'Communication', value: communication, fullMark: 100 },
-52:     { axis: 'Problem Solving', value: problemSolving, fullMark: 100 },
-53:     { axis: 'Leadership', value: leadership, fullMark: 100 },
-54:     { axis: 'Learning Ability', value: learning, fullMark: 100 },
-55:   ];
-56: 
-57:   return (
-58:     <div className={`glass-card rounded-2xl ${compact ? 'p-3.5' : 'p-6'} border border-white/10 shadow-xl space-y-3`}>
-59:       <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-60:         <div className="flex items-center gap-2">
-61:           <Dna className="w-4 h-4 text-violet-400" />
-62:           <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-bold uppercase tracking-wider text-gray-200`}>
-63:             Interview DNA Matrix
-64:           </h3>
-65:         </div>
-66:         <span className="text-[10px] text-violet-300 font-medium px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30">
-67:           5-Vector Analysis
-68:         </span>
-69:       </div>
-70: 
-71:       {/* Radar Chart Container */}
-72:       <div className={`w-full ${compact ? 'h-48' : 'h-72'} flex items-center justify-center`}>
-73:         <ResponsiveContainer width="100%" height="100%">
-74:           <RadarChart cx="50%" cy="50%" outerRadius={compact ? '65%' : '75%'} data={chartData}>
-75:             <PolarGrid stroke="rgba(255, 255, 255, 0.15)" strokeDasharray="3 3" />
-76:             <PolarAngleAxis
-77:               dataKey="axis"
-78:               tick={{ fill: '#cbd5e1', fontSize: compact ? 10 : 12, fontWeight: 500 }}
-79:             />
-80:             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} />
-81:             <Radar
-82:               name="Candidate Score"
-83:               dataKey="value"
-84:               stroke="#818cf8"
-85:               fill="url(#radarGradient)"
-86:               fillOpacity={0.6}
-87:             />
-88:             <defs>
-89:               <linearGradient id="radarGradient" x1="0" y1="0" x2="0" y2="1">
-90:                 <stop offset="0%" stopColor="#818cf8" stopOpacity={0.8} />
-91:                 <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.3} />
-92:               </linearGradient>
-93:             </defs>
-94:             <Tooltip
-95:               contentStyle={{
-96:                 backgroundColor: 'rgba(15, 23, 42, 0.9)',
-97:                 borderColor: 'rgba(255, 255, 255, 0.15)',
-98:                 borderRadius: '12px',
-99:                 color: '#fff',
-100:                 fontSize: '12px',
-101:               }}
-102:             />
-103:           </RadarChart>
-104:         </ResponsiveContainer>
-105:       </div>
-106: 
-107:       {!compact && (
-108:         <div className="grid grid-cols-5 gap-2 pt-2 border-t border-white/10 text-center">
-109:           <div>
-110:             <div className="text-[10px] text-gray-400">Technical</div>
-111:             <div className="text-sm font-extrabold text-indigo-400">{technical}%</div>
-112:           </div>
-113:           <div>
-114:             <div className="text-[10px] text-gray-400">Comm.</div>
-115:             <div className="text-sm font-extrabold text-cyan-400">{communication}%</div>
-116:           </div>
-117:           <div>
-118:             <div className="text-[10px] text-gray-400">Problem</div>
-119:             <div className="text-sm font-extrabold text-emerald-400">{problemSolving}%</div>
-120:           </div>
-121:           <div>
-122:             <div className="text-[10px] text-gray-400">Leadership</div>
-123:             <div className="text-sm font-extrabold text-amber-400">{leadership}%</div>
-124:           </div>
-125:           <div>
-126:             <div className="text-[10px] text-gray-400">Learning</div>
-127:             <div className="text-sm font-extrabold text-violet-400">{learning}%</div>
-128:           </div>
-129:         </div>
-130:       )}
-131:     </div>
-132:   );
-133: }
-
-(End of file - total 133 lines)
-</content>
-```
-
----
-
-## Assistant (Build · Claude Opus 5 · 26.8s)
-
-**Tool: write**
-
-**Input:**
-```json
-{
-  "content": "'use client';\n\nimport React from 'react';\nimport {\n  Radar,\n  RadarChart,\n  PolarGrid,\n  PolarAngleAxis,\n  PolarRadiusAxis,\n  ResponsiveContainer,\n  Tooltip,\n} from 'recharts';\nimport { Dna } from 'lucide-react';\nimport { InterviewDNA as InterviewDNAType } from '@/types/interview';\nimport { cn } from '@/lib/utils';\n\ninterface InterviewDNAProps {\n  dna: InterviewDNAType | null | undefined;\n  compact?: boolean;\n}\n\nfunction Header({ compact }: { compact: boolean }) {\n  return (\n    <div className=\"flex items-center justify-between gap-2 border-b border-white/[0.07] pb-3\">\n      <div className=\"flex items-center gap-2\">\n        <Dna className=\"h-4 w-4 text-accent-violet\" />\n        <h3\n          className={cn(\n            'font-bold uppercase tracking-wider text-ink',\n            compact ? 'text-xs' : 'text-sm'\n          )}\n        >\n          Interview DNA Matrix\n        </h3>\n      </div>\n      <span className=\"shrink-0 rounded-full border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[9px] font-semibold text-violet-300\">\n        5-VECTOR\n      </span>\n    </div>\n  );\n}\n\nconst VECTORS = [\n  { key: 'technicalKnowledge', axis: 'Technical', label: 'Technical', color: 'text-brand-300' },\n  { key: 'communication', axis: 'Communication', label: 'Comm.', color: 'text-accent-cyan' },\n  { key: 'problemSolving', axis: 'Problem Solving', label: 'Problem', color: 'text-accent-emerald' },\n  { key: 'leadership', axis: 'Leadership', label: 'Leadership', color: 'text-accent-amber' },\n  { key: 'learningAbility', axis: 'Learning', label: 'Learning', color: 'text-accent-violet' },\n] as const;\n\nexport default function InterviewDNA({ dna, compact = false }: InterviewDNAProps) {\n  if (!dna) {\n    return (\n      <div className={cn('surface', compact ? 'p-4' : 'p-6')}>\n        <Header compact={compact} />\n        <div\n          className={cn(\n            'flex flex-col items-center justify-center gap-3 text-center',\n            compact ? 'h-36' : 'h-48'\n          )}\n        >\n          <div className=\"flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.03]\">\n            <Dna className=\"h-5 w-5 text-ink-subtle\" />\n          </div>\n          <p className=\"max-w-[220px] text-xs text-ink-subtle\">\n            DNA matrix builds as the candidate provides evidence.\n          </p>\n        </div>\n      </div>\n    );\n  }\n\n  const values = {\n    technicalKnowledge: dna.technicalKnowledge ?? 0,\n    communication: dna.communication ?? 0,\n    problemSolving: dna.problemSolving ?? 0,\n    leadership: dna.leadership ?? 0,\n    learningAbility: dna.learningAbility ?? 0,\n  };\n\n  const chartData = VECTORS.map((v) => ({\n    axis: v.axis,\n    value: values[v.key],\n    fullMark: 100,\n  }));\n\n  return (\n    <div className={cn('surface', compact ? 'p-4' : 'p-6')}>\n      <Header compact={compact} />\n\n      <div className={cn('mt-2 w-full', compact ? 'h-52' : 'h-72')}>\n        <ResponsiveContainer width=\"100%\" height=\"100%\">\n          <RadarChart cx=\"50%\" cy=\"50%\" outerRadius={compact ? '68%' : '75%'} data={chartData}>\n            <defs>\n              <linearGradient id=\"dnaRadarGradient\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n                <stop offset=\"0%\" stopColor=\"#a78bfa\" stopOpacity={0.75} />\n                <stop offset=\"100%\" stopColor=\"#22d3ee\" stopOpacity={0.25} />\n              </linearGradient>\n            </defs>\n            <PolarGrid stroke=\"rgba(255,255,255,0.10)\" />\n            <PolarAngleAxis\n              dataKey=\"axis\"\n              tick={{ fill: '#9aa1b8', fontSize: compact ? 9 : 11, fontWeight: 500 }}\n            />\n            <PolarRadiusAxis\n              angle={30}\n              domain={[0, 100]}\n              tick={{ fill: '#5b6280', fontSize: 9 }}\n              axisLine={false}\n            />\n            <Radar\n              name=\"Score\"\n              dataKey=\"value\"\n              stroke=\"#a78bfa\"\n              strokeWidth={2}\n              fill=\"url(#dnaRadarGradient)\"\n              fillOpacity={1}\n              animationDuration={900}\n            />\n            <Tooltip\n              cursor={{ stroke: 'rgba(255,255,255,0.15)' }}\n              contentStyle={{\n                backgroundColor: 'rgba(10,13,22,0.95)',\n                border: '1px solid rgba(255,255,255,0.10)',\n                borderRadius: '14px',\n                color: '#fff',\n                fontSize: '12px',\n                boxShadow: '0 20px 40px -20px rgba(0,0,0,0.9)',\n              }}\n              formatter={(value: number | string) => [`${value}%`, 'Score']}\n            />\n          </RadarChart>\n        </ResponsiveContainer>\n      </div>\n\n      {!compact && (\n        <div className=\"grid grid-cols-5 gap-2 border-t border-white/[0.07] pt-4 text-center\">\n          {VECTORS.map((v) => (\n            <div key={v.key}>\n              <div className=\"text-[10px] text-ink-subtle\">{v.label}</div>\n              <div className={cn('font-mono text-base font-bold', v.color)}>\n                {values[v.key]}\n                <span className=\"text-[10px]\">%</span>\n              </div>\n            </div>\n          ))}\n        </div>\n      )}\n    </div>\n  );\n}\n",
-  "filePath": "/home/noel/Noel/vibathon/frontend/components/InterviewDNA.tsx"
-}
-```
-
-**Output:**
-```
-Wrote file successfully.
-```
-
----
-
-## Assistant (Build · Claude Opus 5 · 16.4s)
-
-Let me typecheck the batch so far before continuing.
-
-**Tool: bash**
-
-**Input:**
-```json
-{
-  "command": "cd /home/noel/Noel/vibathon/frontend && npx tsc --noEmit 2>&1 | head -20",
-  "timeout": 180000
-}
-```
-
-**Output:**
-```
-(no output)
-```
+**Updated:** 8/9/2026, 11:22:05 AM
 
 ---
 
@@ -4702,6 +4313,298 @@ The rewrite is complete and verified.
 - I added `*.tsbuildinfo` to the root `.gitignore` rather than just deleting the artifact, since `tsc --noEmit` will keep regenerating it. That's the one file I touched outside `frontend/`; say the word if you'd rather revert it.
 
 Nothing is committed or pushed, per your standing instruction. `recharts` is now dead weight in `package.json` — worth dropping on the next dependency pass, though removing it will churn `package-lock.json`.
+
+---
+
+## User
+
+can u provide the ai usage log 
+
+---
+
+## Assistant (Plan · Claude Opus 5 · 205.8s)
+
+_Thinking:_
+
+
+
+
+Plan mode is on, so I'll look rather than write. Let me check whether the repo already has anything like this.
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "ls -a /home/noel/Noel/vibathon",
+  "timeout": 30000
+}
+```
+
+**Output:**
+```
+.
+..
+backend
+candidates.json
+curriculum.json
+Dockerfile
+frontend
+.git
+.gitignore
+PROMPTS.md
+.pytest_cache
+session-ses_022d.md
+start.sh
+technical-spec.md
+
+```
+
+**Tool: grep**
+
+**Input:**
+```json
+{
+  "pattern": "(?i)ai[ _-]?usage|usage[ _-]?log|ai[ _-]?disclosure|prompt[ _-]?log|submission",
+  "path": "/home/noel/Noel/vibathon"
+}
+```
+
+**Output:**
+```
+Found 3 matches
+/home/noel/Noel/vibathon/PROMPTS.md:
+  Line 1: # AI-Usage Log & Vibe Coding Transcript
+
+  Line 13: This document serves as the official AI Usage Log and PROMPTS document for submission verification.
+
+
+/home/noel/Noel/vibathon/technical-spec.md:
+  Line 3: This document defines the API contract and submission requirements for the AI Interview Agent.
+
+```
+
+---
+
+## Assistant (Plan · Claude Opus 5 · 16.2s)
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/noel/Noel/vibathon/PROMPTS.md"
+}
+```
+
+**Output:**
+```
+<path>/home/noel/Noel/vibathon/PROMPTS.md</path>
+<type>file</type>
+<content>
+1: # AI-Usage Log & Vibe Coding Transcript
+2: 
+3: > **Project:** VERITAS AI - Competency & Evidence Verification Platform  
+4: > **Repository:** Ultra2021/Veritas-ai  
+5: > **Build Paradigm:** 100% Vibe-Coded with AI Assistant trajectory logs.
+6: 
+7: ---
+8: 
+9: ## 📋 Overview
+10: 
+11: This repository was created and vibe-coded using AI coding assistants via **OpenCode AI** (Claude Opus 5, Gemini 3.6 Flash). Every feature, visual component, backend endpoint, and evaluation metric was iteratively prompted, refined, tested, and built through conversational AI sessions.
+12: 
+13: This document serves as the official AI Usage Log and PROMPTS document for submission verification.
+14: 
+15: ---
+16: 
+17: ## ⚡ OpenCode AI Session & Usage Telemetry
+18: 
+19: - **OpenCode Session ID:** `ses_022d53da8ffe3bVD0jJc0NngiW`
+20: - **Primary AI Models:** Claude Opus 5 / Gemini 3.6 Flash
+21: - **Recorded Messages:** 890+ prompt & response exchanges
+22: - **Tool Executions:** 770+ tool calls (edit, write, read, bash, grep, glob)
+23: 
+24: ---
+25: 
+26: ## 📂 Exported Chat Transcripts & Log Files
+27: 
+28: The repository includes complete step-by-step chat session transcripts generated during development:
+29: 
+30: - **Primary OpenCode Session Log (Markdown):** [`session-ses_022d.md`](./session-ses_022d.md)  
+31:   *Contains 4,700+ lines detailing prompt exchanges, code modifications, tool executions, visual redesigns, component creations, and terminal outputs.*
+32: - **OpenCode CLI Export (JSON):** [`opencode-export.json`](./opencode-export.json) (Exported via `opencode export ses_022d53da8ffe3bVD0jJc0NngiW`)
+33: 
+34: ---
+35: 
+36: ## 🎯 Key Prompts & Vibe-Coding Trajectory
+37: 
+38: ### 1. Repository Setup & Architecture
+39: **User Prompt:**
+40: > "clone the repo https://github.com/Ultra2021/Veritas-ai.git only the main branch"
+41: 
+42: **Key Actions & Code Built:**
+43: - Initialized Next.js frontend with TailwindCSS, Framer Motion, Lucide React icons, and TypeScript.
+44: - Built Python / FastAPI backend for AI verification, rubric scoring, and candidate telemetry parsing.
+45: 
+46: ---
+47: 
+48: ### 2. Major UI & Visual Redesign (Neo-Brutalist Departure)
+49: **User Prompt:**
+50: > "no this not i want. i want you to completely change everything literally every aspect of the frontend. i need it to be attractive creative interactive and a completely different ui with different colour schemes. something out of the box ui"
+51: 
+52: **AI Design Decisions:**
+53: - **Visual Direction:** Neo-brutalist (bold, contrasting typography, heavy 3px borders, offset shadows, vibrant neon color accents).
+54: - **Color Palette:** High-contrast paper background (`#FAF8F5`), ink text (`#0D0D0D`), acid green (`#CCFF00`), hot pink (`#FF0055`), cobalt (`#0047FF`), mint (`#00FF88`), and tangerine (`#FF6B00`).
+55: - **Interactivity:** Custom brutalist cursor, magnetic button pulls, counter animations, marquee tickers, and interactive interrogation logs.
+56: 
+57: ---
+58: 
+59: ### 3. Core Component & Verification Features
+60: 
+61: #### Interrogation Engine & Live Telemetry
+62: - Implemented real-time claim breakdown and evidence-based score tracking.
+63: - Created `EvidenceGraph`, `HiringConfidence`, `InterviewDNA`, and `AnswerInput` components.
+64: 
+65: #### Interactive Results & Assessment Dashboard
+66: - Generated candidate competency radar breakdown, confidence dials, transcript evidence quotes, and PDF/print export functionality.
+67: 
+68: #### Backend Integration & Data Validation
+69: - Created backend endpoints supporting dynamic candidate selection (`candidates.json`), custom skill rubrics (`curriculum.json`), and live interview state management.
+70: 
+71: ---
+72: 
+73: ## 📜 Full Prompt Session Log
+74: 
+75: For full line-by-line tool calls, code diffs, and prompt trajectory, refer to the exported markdown log file:
+76: 
+77: 👉 **[View Full Session Log (`session-ses_022d.md`)](./session-ses_022d.md)**
+
+(End of file - total 77 lines)
+</content>
+```
+
+---
+
+## Assistant (Plan · Claude Opus 5 · 355.7s)
+
+_Thinking:_
+
+
+
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "cd /home/noel/Noel/vibathon; wc -l session-ses_022d.md; ls -la opencode-export.json 2>/dev/null || echo \"opencode-export.json: MISSING\"; echo \"--- tracked in git?\"; git ls-files | grep -i \"prompts\\|session-ses\\|opencode-export\" || echo \"(none tracked)\"",
+  "timeout": 30000
+}
+```
+
+**Output:**
+```
+4707 session-ses_022d.md
+-rw-r--r-- 1 noel noel 11260559 Aug  9 11:15 opencode-export.json
+--- tracked in git?
+PROMPTS.md
+backend/prompts/__init__.py
+backend/prompts/evidence_prompt.txt
+backend/prompts/interview_prompt.txt
+opencode-export.json
+session-ses_022d.md
+
+```
+
+---
+
+## Assistant (Plan · Claude Opus 5 · 28.9s)
+
+_Thinking:_
+
+
+
+
+The log already exists and is committed. Let me check how stale it is against what we actually built.
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "cd /home/noel/Noel/vibathon/frontend; grep -n \"bone\\|paper\\|sand\\|ink\\|smoke\\|acid\\|hot\\|cobalt\\|tangerine\\|violetPop\\|mint\\|sun\\|blood\" tailwind.config.ts | grep \"#\"",
+  "timeout": 30000
+}
+```
+
+**Output:**
+```
+13:        bone: "#F2EEE3",
+14:        paper: "#FBF9F4",
+15:        sand: "#E7E1D2",
+16:        ink: "#0A0A0A",
+17:        smoke: "#5C574C",
+20:        acid: "#CCFF00",      // acid lime
+21:        hot: "#FF2E88",       // hot pink
+22:        cobalt: "#2D4EFF",    // electric blue
+23:        tangerine: "#FF6B1A", // orange
+24:        violetPop: "#8B3DFF", // purple
+25:        mint: "#00E5A0",      // mint green
+26:        sun: "#FFD600",       // yellow
+27:        blood: "#E8202A",     // red
+50:        "brutal-acid": "6px 6px 0 0 #CCFF00, 6px 6px 0 3px #0A0A0A",
+51:        "brutal-hot": "6px 6px 0 0 #FF2E88, 6px 6px 0 3px #0A0A0A",
+52:        "brutal-cobalt": "6px 6px 0 0 #2D4EFF, 6px 6px 0 3px #0A0A0A",
+
+```
+
+---
+
+## Assistant (Plan · Claude Opus 5 · 26.1s)
+
+_Thinking:_
+
+
+
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "cd /home/noel/Noel/vibathon; echo \"=== last commit touching log files ===\"; git log --oneline -3 -- PROMPTS.md session-ses_022d.md opencode-export.json; echo; echo \"=== HEAD ===\"; git log --oneline -1; echo; echo \"=== tail of session log ===\"; tail -12 session-ses_022d.md",
+  "timeout": 30000
+}
+```
+
+**Output:**
+```
+=== last commit touching log files ===
+a9b4b0fb fix: ensure interview session candidate ID is synchronized with selected candidate profile
+
+=== HEAD ===
+a9b4b0fb fix: ensure interview session candidate ID is synchronized with selected candidate profile
+
+=== tail of session log ===
+| Deleted primitives referenced anywhere | none |
+| Runtime server errors/warnings | none |
+| `types/`, `services/`, `hooks/useInterview.ts`, `backend/` | zero diff |
+
+## Two notes
+- The hex-grep on the compiled CSS initially looked like a miss — that was a false negative. Tailwind emits `rgb(255 46 136 / var(--tw-text-opacity,1))`, not hex. All accents (`acid`, `hot`, `cobalt`, `ink`, `bone`) and all five `shadow-brutal*` steps are in the bundle.
+- I added `*.tsbuildinfo` to the root `.gitignore` rather than just deleting the artifact, since `tsc --noEmit` will keep regenerating it. That's the one file I touched outside `frontend/`; say the word if you'd rather revert it.
+
+Nothing is committed or pushed, per your standing instruction. `recharts` is now dead weight in `package.json` — worth dropping on the next dependency pass, though removing it will churn `package-lock.json`.
+
+---
+
+
+```
+
+---
+
+## Assistant (Plan · Claude Opus 5 · 112.2s)
 
 ---
 
