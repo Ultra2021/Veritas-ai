@@ -375,6 +375,7 @@ class InterviewService:
 
         return InterviewTurnResponse(
             sessionId=state.sessionId,
+            candidateId=state.candidateId,
             questionId=state.currentQuestionId,
             question=state.currentQuestion,
             reply=reply,

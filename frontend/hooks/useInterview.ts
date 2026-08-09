@@ -32,6 +32,7 @@ export function useInterview() {
   const isInitializedRef = useRef<boolean>(false);
 
   // Initialize or start session for candidate
+  // Initialize or start session for candidate
   const startSession = useCallback(async (candidateIdToUse?: string) => {
     if (isStartingRef.current) return;
     isStartingRef.current = true;
@@ -39,7 +40,20 @@ export function useInterview() {
     setIsLoading(true);
     setError(null);
     try {
-      const targetCandidateId = candidateIdToUse || candidate.candidateId || 'CAND-001';
+      let targetCandidateId = candidateIdToUse;
+      if (!targetCandidateId && typeof window !== 'undefined') {
+        const saved = localStorage.getItem('veritas_candidate');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.candidateId) targetCandidateId = parsed.candidateId;
+          } catch (e) {}
+        }
+      }
+      if (!targetCandidateId) {
+        targetCandidateId = candidate.candidateId || 'CAND-001';
+      }
+
       const turn = await startInterview(targetCandidateId);
 
       setSessionId(turn.sessionId);
@@ -76,10 +90,12 @@ export function useInterview() {
     isInitializedRef.current = true;
 
     if (typeof window !== 'undefined') {
+      let activeCandidateId = 'CAND-001';
       const savedCandidate = localStorage.getItem('veritas_candidate');
       if (savedCandidate) {
         try {
           const parsed = JSON.parse(savedCandidate);
+          if (parsed.candidateId) activeCandidateId = parsed.candidateId;
           setCandidate({
             ...DEFAULT_CANDIDATE,
             ...parsed,
@@ -97,17 +113,25 @@ export function useInterview() {
       if (savedResponse) {
         try {
           parsedResponse = JSON.parse(savedResponse);
-          setCurrentResponse(parsedResponse);
+          // Invalidate cached session if it belonged to a different candidate
+          if (parsedResponse?.candidateId && parsedResponse.candidateId !== activeCandidateId) {
+            parsedResponse = null;
+            localStorage.removeItem('veritas_session_id');
+            localStorage.removeItem('veritas_current_response');
+            localStorage.removeItem('veritas_messages');
+          } else {
+            setCurrentResponse(parsedResponse);
+          }
         } catch (e) {
           console.error('Failed to parse currentResponse from localStorage:', e);
         }
       }
 
-      if (savedSessionId) {
+      if (savedSessionId && parsedResponse) {
         setSessionId(savedSessionId);
       }
 
-      if (savedMessages) {
+      if (savedMessages && parsedResponse) {
         try {
           const parsed = JSON.parse(savedMessages);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -121,15 +145,15 @@ export function useInterview() {
           {
             id: `msg-hydrated`,
             sender: 'ai',
-            text: parsedResponse.question,
+            text: parsedResponse.reply || parsedResponse.question,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             skillTag: parsedResponse.currentCompetency || undefined,
           },
         ]);
       }
 
-      if (!savedSessionId && !savedResponse) {
-        startSession();
+      if (!savedSessionId || !parsedResponse) {
+        startSession(activeCandidateId);
       }
     }
   }, [startSession]);
@@ -213,7 +237,18 @@ export function useInterview() {
     setMessages([]);
     setError(null);
     isStartingRef.current = false;
-    startSession(candidate.candidateId);
+
+    let activeCid = candidate.candidateId;
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('veritas_candidate');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.candidateId) activeCid = parsed.candidateId;
+        } catch (e) {}
+      }
+    }
+    startSession(activeCid);
   };
 
   const finishInterview = async (): Promise<InterviewTurnResponse | null> => {

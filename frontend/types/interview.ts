@@ -47,6 +47,7 @@ export interface FeedbackData {
 
 export interface InterviewTurnResponse {
   sessionId: string;
+  candidateId?: string;
   questionId: string;
   question: string;
   reply?: string;

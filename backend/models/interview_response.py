@@ -36,6 +36,7 @@ class InterviewTurnResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sessionId: UUID | str
+    candidateId: str = ""
     questionId: str = ""
     question: str = ""
     reply: str = ""
