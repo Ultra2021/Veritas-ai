@@ -2,34 +2,39 @@
 
 > **Project:** VERITAS AI - Competency & Evidence Verification Platform  
 > **Repository:** Ultra2021/Veritas-ai  
-> **Build Paradigm:** 100% Vibe-Coded with AI Assistant trajectory logs.
+> **Build Paradigm:** 100% Vibe-Coded with AI Assistant trajectory logs across **Antigravity AI** and **OpenCode AI**.
 
 ---
 
 ## 📋 Overview
 
-This repository was created and vibe-coded using AI coding assistants via **OpenCode AI** (Claude Opus 5, Gemini 3.6 Flash). Every feature, visual component, backend endpoint, and evaluation metric was iteratively prompted, refined, tested, and built through conversational AI sessions.
+This repository was created and vibe-coded using state-of-the-art AI coding agents:
+1. **Google DeepMind Antigravity AI** (Autonomous agentic coding assistant)
+2. **OpenCode AI** (Claude Opus 5, Gemini 3.6 Flash)
+
+Every feature, visual component, backend endpoint, and evaluation metric was iteratively prompted, refined, tested, and built through conversational AI sessions.
 
 This document serves as the official AI Usage Log and PROMPTS document for submission verification.
 
 ---
 
-## ⚡ OpenCode AI Session & Usage Telemetry
+## ⚡ AI Platform Telemetry & Usage Logs
 
+### 1. 🤖 Antigravity AI (Google DeepMind Agent)
+- **Primary AI Models:** Gemini 3.6 Flash / Advanced Agentic Coding Engine
+- **Recorded Sessions:** 6 core development sessions (`e256e42f`, `55f51138`, `e11f67da`, `ce7a604e`, `0572507d`, `3afaf550`)
+- **Exported Markdown Transcript:** [`antigravity-transcripts.md`](./antigravity-transcripts.md) *(9,800+ lines of prompt history, planning, tool executions, and step-by-step assistant trajectories)*
+- **Exported JSON Trajectory Data:** [`antigravity-export.json`](./antigravity-export.json) *(3.7 MB full JSON log dump)*
+
+---
+
+### 2. ⚡ OpenCode AI
 - **OpenCode Session ID:** `ses_022d53da8ffe3bVD0jJc0NngiW`
 - **Primary AI Models:** Claude Opus 5 / Gemini 3.6 Flash
 - **Recorded Messages:** 890+ prompt & response exchanges
 - **Tool Executions:** 770+ tool calls (edit, write, read, bash, grep, glob)
-
----
-
-## 📂 Exported Chat Transcripts & Log Files
-
-The repository includes complete step-by-step chat session transcripts generated during development:
-
-- **Primary OpenCode Session Log (Markdown):** [`session-ses_022d.md`](./session-ses_022d.md)  
-  *Contains 4,700+ lines detailing prompt exchanges, code modifications, tool executions, visual redesigns, component creations, and terminal outputs.*
-- **OpenCode CLI Export (JSON):** [`opencode-export.json`](./opencode-export.json) (Exported via `opencode export ses_022d53da8ffe3bVD0jJc0NngiW`)
+- **Exported Markdown Transcript:** [`session-ses_022d.md`](./session-ses_022d.md) *(4,700+ lines detailing prompt exchanges, code modifications, tool executions, visual redesigns, and terminal outputs)*
+- **Exported JSON Session Data:** [`opencode-export.json`](./opencode-export.json) *(11 MB full JSON dump exported via `opencode export`)*
 
 ---
 
@@ -70,8 +75,11 @@ The repository includes complete step-by-step chat session transcripts generated
 
 ---
 
-## 📜 Full Prompt Session Log
+## 📜 Full Prompt & Transcript Files Directory
 
-For full line-by-line tool calls, code diffs, and prompt trajectory, refer to the exported markdown log file:
+For full line-by-line tool calls, code diffs, and prompt trajectory, refer to the exported log files:
 
-👉 **[View Full Session Log (`session-ses_022d.md`)](./session-ses_022d.md)**
+1. **Antigravity AI Log (Markdown):** 👉 [`antigravity-transcripts.md`](./antigravity-transcripts.md)
+2. **Antigravity AI Data (JSON):** 👉 [`antigravity-export.json`](./antigravity-export.json)
+3. **OpenCode AI Log (Markdown):** 👉 [`session-ses_022d.md`](./session-ses_022d.md)
+4. **OpenCode AI Data (JSON):** 👉 [`opencode-export.json`](./opencode-export.json)
