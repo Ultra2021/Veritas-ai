@@ -48,7 +48,7 @@ export function useInterview() {
       const firstQuestionMsg: ChatMessage = {
         id: `msg-${Date.now()}`,
         sender: 'ai',
-        text: turn.question,
+        text: turn.reply || turn.question,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         skillTag: turn.currentCompetency || undefined,
       };
@@ -171,11 +171,12 @@ export function useInterview() {
       setCurrentResponse(turn);
 
       // Add AI response message
-      if (turn.question) {
+      const responseText = turn.reply || turn.question;
+      if (responseText) {
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           sender: 'ai',
-          text: turn.question,
+          text: responseText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           skillTag: turn.currentCompetency || undefined,
         };

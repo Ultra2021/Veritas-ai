@@ -360,7 +360,17 @@ class InterviewService:
             evidence = state.evidenceEvaluations[-1]
 
         done = state.completed
-        reply = "Interview completed." if done and not state.currentQuestion else state.currentQuestion
+        if done:
+            reply = (
+                "Thank you so much for walking me through all those architectural decisions! "
+                "That completes the technical portion of our interview."
+            )
+        else:
+            last_interviewer_msgs = [
+                m.message for m in state.conversationHistory if m.role == "interviewer"
+            ]
+            reply = last_interviewer_msgs[-1] if last_interviewer_msgs else state.currentQuestion
+
         feedback = self._build_feedback(state) if done else None
 
         return InterviewTurnResponse(

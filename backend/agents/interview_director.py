@@ -99,23 +99,72 @@ class InterviewDirector:
             ConversationMessage(role="system", message=message)
         )
 
-    def _ask_question(self, state: InterviewState, question: str, competency: str) -> str:
+    def _ask_question(
+        self, state: InterviewState, question: str, competency: str, bridge: str = ""
+    ) -> str:
         """Record a new interviewer question in the session state."""
         state.currentQuestion = question
         state.currentCompetency = competency
         state.currentQuestionId = self._next_question_id(state)
+        full_text = f"{bridge}\n\n{question}".strip() if bridge else question
         state.conversationHistory.append(
-            ConversationMessage(role="interviewer", message=question)
+            ConversationMessage(role="interviewer", message=full_text)
         )
         return state.currentQuestionId
 
     def _asked_questions(self, state: InterviewState) -> set[str]:
         """Return the set of interviewer questions already asked."""
-        return {
-            message.message
-            for message in state.conversationHistory
-            if message.role == "interviewer"
-        }
+        asked = set()
+        for message in state.conversationHistory:
+            if message.role == "interviewer":
+                asked.add(message.message)
+                if "\n\n" in message.message:
+                    asked.add(message.message.split("\n\n")[-1].strip())
+        return asked
+
+    def _build_bridge(
+        self,
+        state: InterviewState,
+        competency: str,
+        is_followup: bool = True,
+        prev_competency: str | None = None,
+    ) -> str:
+        """Build a natural, human-sounding interviewer transition bridge."""
+        if not is_followup and prev_competency and prev_competency != competency:
+            transitions = [
+                f"Great overview on {prev_competency}! Pivoting now to {competency}:",
+                f"Thanks for walking me through your approach to {prev_competency}. Let me shift gears to {competency}:",
+                f"That makes sense regarding {prev_competency}. Moving on to our next topic, {competency}:",
+            ]
+            return transitions[hash(competency) % len(transitions)]
+
+        answer = state.currentAnswer.strip() if state.currentAnswer else ""
+        if not answer or len(answer) < 10 or "don't know" in answer.lower():
+            return f"No worries at all—let's reframe this for {competency}:"
+
+        latest_eval = (
+            state.evidenceEvaluations[-1]
+            if state.evidenceEvaluations
+            else None
+        )
+
+        if latest_eval is not None:
+            if latest_eval.strengths and any(
+                "shows" in s.lower() or "reasoning" in s.lower() or "knowledge" in s.lower()
+                for s in latest_eval.strengths
+            ):
+                return f"Good point on that implementation detail! Building on your response for {competency}:"
+            if latest_eval.gaps:
+                gap = (
+                    latest_eval.gaps[0]
+                    .replace(" not addressed", "")
+                    .replace(" not explained", "")
+                    .strip()
+                )
+                if gap and not gap.lower().startswith("evidence for"):
+                    return f"I see where you're coming from. Probing a bit deeper into {gap}:"
+
+        return f"That makes sense. Probing a bit deeper into {competency}:"
 
     def _next_question_for(self, state: InterviewState, competency: str) -> str:
         """Return the next unasked question from the bank for a competency.
@@ -160,24 +209,21 @@ class InterviewDirector:
         ]
 
     def start_interview(self, state: InterviewState) -> InterviewResponse:
-        """Begin an interview for the session.
-
-        Reads the candidate profile and summary, determines the first
-        competency, generates a welcome message and first question, and
-        records them in the session state.
-        """
+        """Begin an interview for the session."""
         profile = self._candidate_service.get_candidate(state.candidateId)
         summary = self._candidate_service.get_candidate_summary(state.candidateId)
 
         competency = self._resolve_competency(state) or "technicalKnowledge"
         welcome = (
-            f"Welcome, {profile.member.name}. Let's explore your background as a "
-            f"{summary.jobRole} with {summary.yearsExperience} years of experience."
+            f"Welcome, {profile.member.name}! Thanks for taking the time to speak with me today. "
+            f"Looking at your background as a {summary.jobRole} with {summary.yearsExperience} years of experience, "
+            f"I'm excited to explore your technical work from the AI cohort. "
+            f"To kick things off, let's start with {competency}:"
         )
         question = self._next_question_for(state, competency)
 
         self._announce(state, welcome)
-        self._ask_question(state, question, competency)
+        self._ask_question(state, question, competency, bridge=welcome)
         state.interviewStage = "interviewing"
 
         return InterviewResponse(
@@ -188,30 +234,23 @@ class InterviewDirector:
         )
 
     def generate_next_question(self, state: InterviewState) -> InterviewResponse:
-        """Generate the next interview question.
-
-        Uses the current competency when still active, otherwise selects
-        the next competency. Questions come from the ``QuestionBank`` and
-        are never repeated within a session.
-        """
+        """Generate the next interview question."""
+        prev_competency = state.currentCompetency
         competency = self._resolve_competency(state) or "technicalKnowledge"
         question = self._next_question_for(state, competency)
-        self._ask_question(state, question, competency)
+        bridge = self._build_bridge(
+            state, competency, is_followup=False, prev_competency=prev_competency
+        )
+        self._ask_question(state, question, competency, bridge=bridge)
         return InterviewResponse(
-            reply="",
+            reply=bridge,
             question=question,
             currentCompetency=competency,
             interviewStage="interviewing",
         )
 
     def generate_followup_question(self, state: InterviewState) -> InterviewResponse:
-        """Generate a deeper follow-up question for the current competency.
-
-        Only a follow-up that has not already been asked in the session is
-        presented. When no unique question is available the competency is
-        exhausted and ``FollowUpExhaustedError`` is raised so the
-        orchestration layer can move on.
-        """
+        """Generate a deeper follow-up question for the current competency."""
         selected = self.select_next_competency(state)
         competency = (
             state.currentCompetency
@@ -222,9 +261,10 @@ class InterviewDirector:
             raise FollowUpExhaustedError(
                 f"No unique follow-up question available for competency '{competency}'."
             )
-        self._ask_question(state, question, competency)
+        bridge = self._build_bridge(state, competency, is_followup=True)
+        self._ask_question(state, question, competency, bridge=bridge)
         return InterviewResponse(
-            reply="",
+            reply=bridge,
             question=question,
             currentCompetency=competency,
             interviewStage="interviewing",
