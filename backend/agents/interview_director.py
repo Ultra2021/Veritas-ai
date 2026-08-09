@@ -27,6 +27,7 @@ from models.interview_state import (
     InterviewState,
 )
 from services.curriculum_service import CurriculumService
+from utils.relevance import is_irrelevant_or_gibberish
 
 MAX_FOLLOWUPS_PER_COMPETENCY = 2
 MIN_DISTINCT_CURRICULUM_DAYS = 4
@@ -135,25 +136,10 @@ class InterviewDirector:
             _session_seed(state.sessionId) + len(state.conversationHistory)
         )
 
-        if not is_followup and prev_competency and prev_competency != competency:
-            transitions = [
-                f"Great overview on {prev_competency}! Pivoting now to {competency}:",
-                f"Thanks for walking me through your approach to {prev_competency}. Let's shift gears to {competency}:",
-                f"That makes sense regarding {prev_competency}. Moving on to our next topic, {competency}:",
-                f"Next up, I'd like to explore {competency}:",
-                f"Switching topics to {competency}:",
-                f"Let's talk about {competency}:",
-            ]
-            return rng.choice(transitions)
-
         answer = state.currentAnswer.strip() if state.currentAnswer else ""
-        if not answer or len(answer) < 10 or "don't know" in answer.lower():
-            brief_openers = [
-                f"No worries at all—let me reframe this for {competency}:",
-                f"That's completely fine. Let's look at {competency} from another angle:",
-                f"Understood! Let's explore {competency} with a fresh scenario:",
-            ]
-            return rng.choice(brief_openers)
+        is_irrelevant, reason_type = is_irrelevant_or_gibberish(
+            answer, competency=competency
+        )
 
         latest_eval = (
             state.evidenceEvaluations[-1]
@@ -161,6 +147,46 @@ class InterviewDirector:
             else None
         )
 
+        # 1. Switching competencies (pivot)
+        if not is_followup and prev_competency and prev_competency != competency:
+            if is_irrelevant or (latest_eval and latest_eval.evidenceScore == 0):
+                transitions = [
+                    f"Pivoting now to our next topic, {competency}:",
+                    f"Let me shift gears to {competency}:",
+                    f"Next up, I'd like to explore {competency}:",
+                    f"Switching topics to {competency}:",
+                ]
+            else:
+                transitions = [
+                    f"Great overview on {prev_competency}! Pivoting now to {competency}:",
+                    f"Thanks for walking me through your approach to {prev_competency}. Let's shift gears to {competency}:",
+                    f"Understood regarding {prev_competency}. Moving on to our next topic, {competency}:",
+                    f"Next up, I'd like to explore {competency}:",
+                    f"Switching topics to {competency}:",
+                    f"Let's talk about {competency}:",
+                ]
+            return rng.choice(transitions)
+
+        # 2. Irrelevant, gibberish, evasive, or empty answer
+        if is_irrelevant or not answer or (latest_eval and latest_eval.evidenceScore == 0):
+            if reason_type == "evasion" or "don't know" in answer.lower() or "not sure" in answer.lower() or "idk" in answer.lower():
+                evasion_openers = [
+                    f"No worries at all—let me reframe this for {competency}:",
+                    f"That's completely fine. Let me ask about {competency} from a different angle:",
+                    f"Understood! Let's explore {competency} with a fresh scenario:",
+                ]
+                return rng.choice(evasion_openers)
+            else:
+                irrelevant_openers = [
+                    f"That response doesn't seem relevant to the technical question asked. Let's focus back on {competency}:",
+                    f"I didn't catch a technical explanation in your response. Let me refocus on {competency}:",
+                    f"Please stay focused on the technical evaluation. Re-approaching {competency}:",
+                    f"That doesn't address the technical question. Moving back to {competency}:",
+                    f"Let's keep our discussion focused on the technical implementation details for {competency}:",
+                ]
+                return rng.choice(irrelevant_openers)
+
+        # 3. Legitimate answer with strengths / gaps
         if latest_eval is not None:
             if latest_eval.strengths and any(
                 "shows" in s.lower() or "reasoning" in s.lower() or "knowledge" in s.lower()
@@ -182,23 +208,28 @@ class InterviewDirector:
                     .replace(" not explained", "")
                     .strip()
                 )
-                if gap and not gap.lower().startswith("evidence for"):
+                if (
+                    gap
+                    and not gap.lower().startswith("evidence for")
+                    and not gap.lower().startswith("no technical answer")
+                    and not gap.lower().startswith("candidate provided an off-topic")
+                ):
                     gap_openers = [
                         f"Got it. Focusing on {gap}:",
-                        f"Makes sense. Looking closely at {gap}:",
+                        f"Looking closely at {gap}:",
                         f"Understood. Digging into {gap} for a moment:",
-                        f"Fair point. Taking a closer look at {gap}:",
-                        f"That's helpful context. On the topic of {gap}:",
-                        f"Interesting approach. Probing a bit into {gap}:",
+                        f"Taking a closer look at {gap}:",
+                        f"On the topic of {gap}:",
+                        f"Probing a bit into {gap}:",
                         "",  # Direct question with no prefix
                     ]
                     return rng.choice(gap_openers)
 
         general_openers = [
             f"Got it. Following up on {competency}:",
-            f"Makes sense. Probing a bit deeper:",
+            f"Let's probe a bit deeper:",
             f"Understood. Building on that:",
-            f"Right. Taking a closer look at {competency}:",
+            f"Taking a closer look at {competency}:",
             "",  # Direct question with no prefix
         ]
         return rng.choice(general_openers)

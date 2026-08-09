@@ -29,6 +29,7 @@ from models.evidence import EvidenceEvaluation, NextAction
 from models.interview_state import CompetencyState, InterviewDNA, InterviewState
 from services.curriculum_service import CurriculumService
 from services.llm_provider import LLMProvider
+from utils.relevance import is_irrelevant_or_gibberish
 
 _VERIFICATION_THRESHOLD = 80
 
@@ -217,7 +218,29 @@ class MockEvidenceEvaluator(EvidenceEvaluator):
         words = len(text.split())
         all_keywords = (*self._KEYWORDS.get(competency, ()), *keywords)
 
-        if not text:
+        is_irrelevant, reason_type = is_irrelevant_or_gibberish(
+            text, question=question, competency=competency
+        )
+
+        if not text or is_irrelevant:
+            reason_msg = (
+                "No answer provided."
+                if not text
+                else (
+                    "Candidate answer is evasive or contains no technical detail."
+                    if reason_type == "evasion"
+                    else "Candidate answer is irrelevant, off-topic, or nonsensical."
+                )
+            )
+            gap_msg = (
+                "No substantive answer given."
+                if not text
+                else (
+                    "No technical answer provided; candidate expressed uncertainty or skipped the question."
+                    if reason_type == "evasion"
+                    else "Candidate provided an off-topic or nonsensical response instead of a technical answer."
+                )
+            )
             return EvidenceEvaluation(
                 competency=competency,
                 evidenceScore=0,
@@ -228,9 +251,9 @@ class MockEvidenceEvaluator(EvidenceEvaluator):
                 verified=False,
                 followUpRequired=True,
                 nextAction="FOLLOW_UP",
-                reason="No answer provided.",
+                reason=reason_msg,
                 strengths=[],
-                gaps=["No substantive answer given."],
+                gaps=[gap_msg],
                 question=question,
             )
 
@@ -548,7 +571,8 @@ class GeminiEvidenceEvaluator(EvidenceEvaluator):
             "previous_evidence": previous_evidence,
             "curriculum_context": curriculum_context,
         }
-        if self._model is None:
+        is_irrelevant, _ = is_irrelevant_or_gibberish(answer, question=question, competency=competency)
+        if self._model is None or is_irrelevant:
             return self._fallback.evaluate(**fallback_kwargs)
 
         prompt = self._build_prompt(
@@ -633,7 +657,8 @@ class LLMEvidenceEvaluator(EvidenceEvaluator):
             "previous_evidence": previous_evidence,
             "curriculum_context": curriculum_context,
         }
-        if self._provider is None:
+        is_irrelevant, _ = is_irrelevant_or_gibberish(answer, question=question, competency=competency)
+        if self._provider is None or is_irrelevant:
             return self._fallback.evaluate(**fallback_kwargs)
 
         try:
